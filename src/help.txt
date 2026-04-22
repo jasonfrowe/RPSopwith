@@ -1,2 +1,8 @@
-This information is displayed with the HELP and INFO monitor commands.
-Please change it to suit your project.
+RPSopwith for Picocomputer RP6502.
+Current phase: Phase 0 runtime scaffolding.
+
+Milestone 1 target:
+- 320x240 viewport
+- 10 Hz simulation with interpolated rendering
+- Mode-2 terrain and Mode-5 sprite pipeline
+- Keyboard and gamepad input

@@ -1,12 +1,12 @@
 {
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
     "cmake.showSystemKits": false,
     "cmake.options.advanced": {
         "launch": {
-            "statusBarVisibility": "hidden",
+            "statusBarVisibility": "hidden"
         },
         "debug": {
-            "statusBarVisibility": "hidden",
+            "statusBarVisibility": "hidden"
         }
-    },
+    }
 }

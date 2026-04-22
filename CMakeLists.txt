@@ -7,9 +7,22 @@ find_package(llvm-mos-sdk REQUIRED)
 
 project(MY-RP6502-PROJECT C CXX ASM)
 
-add_executable(hello)
-rp6502_asset(hello help src/help.txt)
-rp6502_executable(hello DATA file RESET file)
-target_sources(hello PRIVATE
+option(SOPWITH_ENABLE_TERRAIN "Enable terrain simulation scaffolding" ON)
+option(SOPWITH_ENABLE_FLIGHT "Enable flight simulation scaffolding" ON)
+option(SOPWITH_ENABLE_COLLISIONS "Enable collision scaffolding" OFF)
+
+add_executable(RPSopwith)
+rp6502_asset(RPSopwith help src/help.txt)
+rp6502_executable(RPSopwith DATA file RESET file)
+target_include_directories(RPSopwith PRIVATE src)
+target_compile_definitions(RPSopwith PRIVATE
+    SOPWITH_FEATURE_TERRAIN=$<BOOL:${SOPWITH_ENABLE_TERRAIN}>
+    SOPWITH_FEATURE_FLIGHT=$<BOOL:${SOPWITH_ENABLE_FLIGHT}>
+    SOPWITH_FEATURE_COLLISIONS=$<BOOL:${SOPWITH_ENABLE_COLLISIONS}>
+)
+target_sources(RPSopwith PRIVATE
     src/main.c
+    src/platform/frame_sync.c
+    src/platform/input.c
+    src/game/game.c
 )
