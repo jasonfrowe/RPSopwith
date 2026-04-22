@@ -21,7 +21,7 @@ Flip behavior:
 - After flipping, the same flap key produces opposite screen-direction turn.
 
 Flight behavior:
-- Climbing too high now triggers a Sopwith-style stall/loss-of-control drop.
+- Climbing too high now triggers a Sopwith-style deterministic stall/drop.
 - Land/Home assist reduces throttle and guides a gentle descent/flare.
 
 Custom gamepad mapping:
