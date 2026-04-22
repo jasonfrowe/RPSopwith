@@ -176,7 +176,17 @@ static void update_player_sprite_animation(const game_state_t *state)
         0x03FF,
         0x7FFF
     };
-    uint8_t frame_index = (uint8_t)state->plane_pitch & 0x0Fu;
+    uint8_t angle = (uint8_t)state->plane_pitch & 0x0Fu;
+    uint8_t a = (uint8_t)((16u - angle) & 0x0Fu);
+    uint8_t frame_index;
+
+    if (state->plane_orient) {
+        // Match original Sopwith symbol choice for flipped orientation:
+        // a = (16 - angle) % 16; use mirrored frame bank.
+        frame_index = (uint8_t)(16u + a);
+    } else {
+        frame_index = angle;
+    }
 
     if (frame_index >= RPS_PLAYER_BANK_FRAME_COUNT) {
         frame_index = (uint8_t)(RPS_PLAYER_BANK_FRAME_COUNT / 2u);

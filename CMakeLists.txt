@@ -44,7 +44,7 @@ add_custom_command(
 
 rp6502_asset(RPSopwith help src/help.txt)
 rp6502_asset(RPSopwith 0x12800 ${PLAYER_BIN})
-rp6502_asset(RPSopwith 0x13000 ${PLAYER_PALETTE_BIN})
+rp6502_asset(RPSopwith 0x13800 ${PLAYER_PALETTE_BIN})
 rp6502_executable(RPSopwith DATA file RESET file)
 target_include_directories(RPSopwith PRIVATE src)
 target_compile_definitions(RPSopwith PRIVATE

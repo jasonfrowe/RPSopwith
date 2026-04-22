@@ -5,7 +5,7 @@ import re
 
 from PIL import Image, ImageDraw
 
-FRAME_COUNT = 16
+FRAME_COUNT = 32
 SIZE = 16
 
 SOPWITH_SYMBOL_PATH = Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.c")
@@ -126,12 +126,12 @@ def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[
     ox = frame_index * SIZE
     draw = ImageDraw.Draw(img)
 
-    # Match Sopwith symbol selection for normal orientation:
-    # symbol_plane[angle % 4].sym[angle / 4]
+    # 0..15: normal orientation, 16..31: vertically mirrored orientation.
+    mirrored = frame_index >= 16
     angle = frame_index & 0x0F
     symbol_index = angle & 0x03
     rotations = angle >> 2
-    pixels = transform_symbol(base_symbols[symbol_index], rotations, False)
+    pixels = transform_symbol(base_symbols[symbol_index], rotations, mirrored)
     blit_pixels(img, ox, pixels)
 
     prop_color = 6
