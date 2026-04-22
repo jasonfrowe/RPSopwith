@@ -24,6 +24,7 @@ target_sources(RPSopwith PRIVATE
     src/main.c
     src/platform/frame_sync.c
     src/platform/input.c
+    src/platform/video.c
     src/game/game.c
     src/game/terrain/terrain.c
 )

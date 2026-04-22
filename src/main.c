@@ -4,6 +4,7 @@
 #include "game/game.h"
 #include "platform/frame_sync.h"
 #include "platform/input.h"
+#include "platform/video.h"
 
 int main(void)
 {
@@ -19,6 +20,11 @@ int main(void)
     platform_input_init();
     frame_sync_init();
     game_init(&game);
+
+    if (!platform_video_init()) {
+        puts("Mode-2 init failed");
+        return 1;
+    }
 
     puts("RPSopwith Phase 0 runtime");
 

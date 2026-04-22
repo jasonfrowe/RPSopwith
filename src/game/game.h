@@ -8,6 +8,7 @@
 
 typedef struct game_state_s {
     uint32_t tick_count_10hz;
+    uint16_t prev_world_x;
     uint16_t world_x;
     int16_t plane_x;
     int16_t plane_y;
