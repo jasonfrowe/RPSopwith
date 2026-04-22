@@ -38,6 +38,18 @@ static uint8_t wrap_angle16(int16_t angle)
     return (uint8_t)angle;
 }
 
+static uint8_t angle_step_toward(uint8_t angle, uint8_t target)
+{
+    int8_t delta = (int8_t)((target - angle) & 0x0F);
+    if (delta == 0) {
+        return angle;
+    }
+    if (delta < 8) {
+        return (uint8_t)((angle + 1u) & 0x0Fu);
+    }
+    return (uint8_t)((angle - 1u) & 0x0Fu);
+}
+
 static int16_t wrap_world_x_i16(int32_t x)
 {
     while (x < 0) {
@@ -76,6 +88,8 @@ void game_init(game_state_t *state)
     state->airborne = false;
     state->plane_orient = false;
     state->flip_latch = false;
+    state->stalled_high = false;
+    state->stall_tick = 0;
     state->terrain_edit_cooldown = 0;
     state->crashed = false;
 
@@ -95,6 +109,9 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
     int16_t speed_limit;
     int16_t dx;
     int16_t dy;
+    int16_t altitude;
+    const int16_t stall_enter_y = (int16_t)(-(int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
+    const int16_t stall_recover_y = 16;
 
     state->tick_count_10hz++;
     state->prev_world_x = state->world_x;
@@ -108,23 +125,36 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 
 #if SOPWITH_FEATURE_FLIGHT
     if (!state->crashed) {
+        if (state->airborne) {
+            if (state->plane_y <= stall_enter_y) {
+                state->stalled_high = true;
+                if (state->stall_tick == 0) {
+                    state->stall_tick = 6;
+                }
+            } else if (state->stalled_high && state->plane_y > stall_recover_y) {
+                state->stalled_high = false;
+            }
+        } else {
+            state->stalled_high = false;
+        }
+
         // Mapping in this port follows the user's Sopwith profile:
         // left=accelerate, right=decelerate, down=pull-up, up=pull-down.
-        if (actions->left && state->throttle < RPS_MAX_THROTTLE) {
+        if (!state->stalled_high && actions->left && state->throttle < RPS_MAX_THROTTLE) {
             state->throttle++;
         }
-        if (actions->right && state->throttle > 0) {
+        if (!state->stalled_high && actions->right && state->throttle > 0) {
             state->throttle--;
         }
 
-        if (actions->down) {
+        if (!state->stalled_high && actions->down) {
             flaps = 1;
         }
-        if (actions->up) {
+        if (!state->stalled_high && actions->up) {
             flaps = -1;
         }
 
-        if (actions->flip && !state->flip_latch && state->airborne) {
+        if (!state->stalled_high && actions->flip && !state->flip_latch && state->airborne) {
             state->plane_orient = !state->plane_orient;
         }
         state->flip_latch = actions->flip;
@@ -133,6 +163,20 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
             nangle = wrap_angle16((int16_t)state->plane_pitch - flaps);
         } else {
             nangle = wrap_angle16((int16_t)state->plane_pitch + flaps);
+        }
+
+        // Sopwith HOME-style assist: reduce throttle and guide toward
+        // a shallow descent, then flare near the ground.
+        if (actions->land && state->airborne) {
+            if (state->throttle > 0) {
+                state->throttle--;
+            }
+            altitude = terrain_y - (state->plane_y + (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
+            if (altitude > 24) {
+                nangle = angle_step_toward(nangle, 15u);
+            } else {
+                nangle = angle_step_toward(nangle, 0u);
+            }
         }
         nspeed = state->speed;
 
@@ -166,7 +210,9 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         dx = (int16_t)((state->speed * s_sintab[(nangle + 4u) & 15u]) / 256);
         dy = (int16_t)((state->speed * s_sintab[nangle]) / 256);
 
-        state->world_x = (uint16_t)wrap_world_x_i16((int32_t)state->world_x + dx);
+        if (!state->stalled_high) {
+            state->world_x = (uint16_t)wrap_world_x_i16((int32_t)state->world_x + dx);
+        }
 
         if (!state->airborne) {
             state->plane_y = (int16_t)(terrain_y - (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
@@ -176,14 +222,36 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
             if (flaps > 0 && state->speed >= RPS_MIN_SPEED) {
                 state->airborne = true;
             }
+        } else if (state->stalled_high) {
+            if (state->speed < 1u) {
+                state->speed = 1u;
+            }
+            state->plane_pitch = 12;
+            state->plane_vy = (int8_t)state->speed;
+            state->plane_y += state->plane_vy;
+
+            if (state->stall_tick > 0) {
+                state->stall_tick--;
+            }
+            if (state->stall_tick == 0) {
+                state->plane_orient = !state->plane_orient;
+                state->stall_tick = 6;
+            }
+
+            if ((int16_t)(state->plane_y + (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u)) >= terrain_y) {
+                if (state->plane_vy > 2 || state->speed > (RPS_MIN_SPEED + 2)) {
+                    state->crashed = true;
+                } else {
+                    state->airborne = false;
+                    state->stalled_high = false;
+                    state->plane_y = (int16_t)(terrain_y - (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
+                    state->plane_vy = 0;
+                }
+            }
         } else {
             // Convert Sopwith dy (up-positive) to screen coordinates (down-positive).
             state->plane_vy = (int8_t)(-dy);
             state->plane_y += state->plane_vy;
-
-            if (state->plane_y < (int16_t)(-(int16_t)RPS_MODE5_SPRITE_SIZE_PX * 2)) {
-                state->plane_y = (int16_t)(-(int16_t)RPS_MODE5_SPRITE_SIZE_PX * 2);
-            }
 
             if ((int16_t)(state->plane_y + (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u)) >= terrain_y) {
                 // Hard impact still crashes; gentle contact lands.
@@ -211,7 +279,8 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 #endif
 
     state->plane_x = clamp_i16(state->plane_x, (int16_t)(RPS_SCREEN_WIDTH_PX / 2u - 8), (int16_t)(RPS_SCREEN_WIDTH_PX / 2u + 8));
-    state->plane_y = clamp_i16(state->plane_y, (int16_t)(-(int16_t)RPS_MODE5_SPRITE_SIZE_PX * 2), (int16_t)(RPS_SCREEN_HEIGHT_PX - 1u));
+    // Allow climbing well above view so the player can recover naturally.
+    state->plane_y = clamp_i16(state->plane_y, (int16_t)(-(int16_t)RPS_SCREEN_HEIGHT_PX), (int16_t)(RPS_SCREEN_HEIGHT_PX - 1u));
 
     // Bank animation follows flight angle magnitude, right-facing only.
     bank_target = clamp_i8(bank_target, 0, RPS_PLAYER_BANK_MAX);
@@ -240,6 +309,8 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         state->speed = 0;
         state->plane_orient = false;
         state->flip_latch = false;
+        state->stalled_high = false;
+        state->stall_tick = 0;
         state->crashed = false;
     }
 }

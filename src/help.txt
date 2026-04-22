@@ -11,6 +11,7 @@ Current controls:
 - Flaps: Down/Up arrows or S/W, gamepad down/up
 - Throttle: Left/Right arrows or A/D, gamepad left/right
 - Flip plane: C, gamepad Y (or JOYSTICK_SH.DAT override)
+- Land/Home assist: Home or H, gamepad Select (or JOYSTICK_SH.DAT override)
 - Fire: Space or Z, gamepad A
 - Bomb (terrain crater test): X, gamepad B
 - Reset from crash: Enter, gamepad Start
@@ -18,6 +19,10 @@ Current controls:
 Flip behavior:
 - Flaps are orientation-relative like original Sopwith.
 - After flipping, the same flap key produces opposite screen-direction turn.
+
+Flight behavior:
+- Climbing too high now triggers a Sopwith-style stall/loss-of-control drop.
+- Land/Home assist reduces throttle and guides a gentle descent/flare.
 
 Custom gamepad mapping:
 - If JOYSTICK_SH.DAT is present, gamepad mappings are loaded using the RPDemo format.

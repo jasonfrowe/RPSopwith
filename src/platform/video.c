@@ -214,8 +214,8 @@ static void update_player_sprite_position(const game_state_t *state)
     if (sprite_x < 0) {
         sprite_x = 0;
     }
-    if (sprite_y < 0) {
-        sprite_y = 0;
+    if (sprite_y < -(int16_t)RPS_MODE5_SPRITE_SIZE_PX) {
+        sprite_y = -(int16_t)RPS_MODE5_SPRITE_SIZE_PX;
     }
     if (sprite_x > (int16_t)(RPS_SCREEN_WIDTH_PX - RPS_MODE5_SPRITE_SIZE_PX)) {
         sprite_x = (int16_t)(RPS_SCREEN_WIDTH_PX - RPS_MODE5_SPRITE_SIZE_PX);

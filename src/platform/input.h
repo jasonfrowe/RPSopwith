@@ -8,6 +8,7 @@ typedef struct input_actions_s {
     bool down;
     bool left;
     bool right;
+    bool land;
     bool flip;
     bool fire;
     bool bomb;

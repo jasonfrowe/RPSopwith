@@ -33,6 +33,7 @@ enum {
     GP_BTN_B = 0x02,
     GP_BTN_Y = 0x10,
 
+    GP_BTN_SELECT = 0x04,
     GP_BTN_START = 0x08
 };
 
@@ -47,6 +48,7 @@ enum {
     KEY_A = 0x04,
     KEY_C = 0x06,
     KEY_D = 0x07,
+    KEY_H = 0x0B,
     KEY_S = 0x16,
     KEY_W = 0x1A,
     KEY_X = 0x1B,
@@ -54,6 +56,7 @@ enum {
     KEY_Z = 0x1D,
     KEY_ENTER = 0x28,
     KEY_SPACE = 0x2C,
+    KEY_HOME = 0x4A,
     KEY_RIGHT = 0x4F,
     KEY_LEFT = 0x50,
     KEY_DOWN = 0x51,
@@ -98,7 +101,7 @@ enum {
     ACTION_BTN_FLIP,
     ACTION_UNUSED_BTN_LT,
     ACTION_UNUSED_BTN_RT,
-    ACTION_UNUSED_BTN_SELECT,
+    ACTION_BTN_LAND_HOME,
     ACTION_BTN_START,
     ACTION_COUNT
 };
@@ -172,6 +175,11 @@ static void reset_default_mappings(void)
     s_button_mappings[ACTION_BTN_BOMB].keyboard_key = KEY_X;
     s_button_mappings[ACTION_BTN_BOMB].gamepad_button = GP_FIELD_BTN0;
     s_button_mappings[ACTION_BTN_BOMB].gamepad_mask = GP_BTN_B;
+
+    // Sopwith-style HOME action: request return/landing.
+    s_button_mappings[ACTION_BTN_LAND_HOME].keyboard_key = KEY_HOME;
+    s_button_mappings[ACTION_BTN_LAND_HOME].gamepad_button = GP_FIELD_BTN1;
+    s_button_mappings[ACTION_BTN_LAND_HOME].gamepad_mask = GP_BTN_SELECT;
 
     s_button_mappings[ACTION_BTN_START].keyboard_key = KEY_ENTER;
     s_button_mappings[ACTION_BTN_START].gamepad_button = GP_FIELD_BTN1;
@@ -279,6 +287,7 @@ void platform_input_poll(input_actions_t *actions)
     actions->down = action_pressed(ACTION_MOVE_DOWN) || key_is_down(KEY_S);
     actions->left = action_pressed(ACTION_MOVE_LEFT) || key_is_down(KEY_A);
     actions->right = action_pressed(ACTION_MOVE_RIGHT) || key_is_down(KEY_D);
+    actions->land = action_pressed(ACTION_BTN_LAND_HOME) || key_is_down(KEY_H);
     actions->flip = action_pressed(ACTION_BTN_FLIP);
     actions->fire = action_pressed(ACTION_BTN_FIRE) || key_is_down(KEY_SPACE);
     actions->bomb = action_pressed(ACTION_BTN_BOMB);
