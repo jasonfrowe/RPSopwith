@@ -6,3 +6,12 @@ Milestone 1 target:
 - 10 Hz simulation with interpolated rendering
 - Mode-2 terrain and Mode-5 sprite pipeline
 - Keyboard and gamepad input
+
+Current controls:
+- Move: Arrow keys or WASD, gamepad D-pad/left stick
+- Fire: Space or Z, gamepad A
+- Bomb (terrain crater test): X, gamepad B
+- Reset from crash: Enter, gamepad Start
+
+Custom gamepad mapping:
+- If JOYSTICK_SH.DAT is present, gamepad mappings are loaded using the RPDemo format.
