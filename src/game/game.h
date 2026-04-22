@@ -13,6 +13,11 @@ typedef struct game_state_s {
     int16_t plane_x;
     int16_t plane_y;
     int8_t plane_bank;
+    int8_t plane_pitch;
+    int8_t plane_vy;
+    uint8_t throttle;
+    uint8_t speed;
+    bool airborne;
     uint8_t terrain_edit_cooldown;
     bool crashed;
 } game_state_t;

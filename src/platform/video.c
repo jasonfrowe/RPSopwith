@@ -176,7 +176,7 @@ static void update_player_sprite_animation(const game_state_t *state)
         0x03FF,
         0x7FFF
     };
-    uint8_t frame_index = (uint8_t)(state->plane_bank - RPS_PLAYER_BANK_MIN);
+    uint8_t frame_index = (uint8_t)state->plane_pitch & 0x0Fu;
 
     if (frame_index >= RPS_PLAYER_BANK_FRAME_COUNT) {
         frame_index = (uint8_t)(RPS_PLAYER_BANK_FRAME_COUNT / 2u);

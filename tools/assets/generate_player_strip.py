@@ -5,7 +5,7 @@ import re
 
 from PIL import Image, ImageDraw
 
-FRAME_COUNT = 9
+FRAME_COUNT = 16
 SIZE = 16
 
 SOPWITH_SYMBOL_PATH = Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.c")
@@ -66,8 +66,15 @@ def symbol_to_pixels(lines: list[str]) -> list[list[int]]:
     return out
 
 
-def mirror_pixels(pixels: list[list[int]]) -> list[list[int]]:
-    return [list(reversed(row)) for row in pixels]
+def rotate_point(x: int, y: int, w: int, h: int, rotations: int, mirror: bool) -> tuple[int, int]:
+    for _ in range(rotations):
+        x, y = y, w - 1 - x
+        w, h = h, w
+
+    if mirror:
+        y = h - 1 - y
+
+    return x, y
 
 
 def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
@@ -78,7 +85,7 @@ def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
                 img.putpixel((ox + x, y), c)
 
 
-def find_nose(pixels: list[list[int]], mirrored: bool) -> tuple[int, int]:
+def find_nose(pixels: list[list[int]], facing_left: bool) -> tuple[int, int]:
     coords = []
     for y in range(SIZE):
         for x in range(SIZE):
@@ -88,7 +95,7 @@ def find_nose(pixels: list[list[int]], mirrored: bool) -> tuple[int, int]:
     if not coords:
         return 8, 8
 
-    if mirrored:
+    if facing_left:
         nose_x = min(x for x, _ in coords)
     else:
         nose_x = max(x for x, _ in coords)
@@ -102,43 +109,39 @@ def find_nose(pixels: list[list[int]], mirrored: bool) -> tuple[int, int]:
     return nose_x, nose_y
 
 
-def frame_bank(index: int) -> int:
-    return index - 4
+def transform_symbol(symbol: list[list[int]], rotations: int, mirror: bool) -> list[list[int]]:
+    out = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+    for y in range(SIZE):
+        for x in range(SIZE):
+            c = symbol[y][x]
+            if c == 0:
+                continue
+            dx, dy = rotate_point(x, y, SIZE, SIZE, rotations, mirror)
+            if 0 <= dx < SIZE and 0 <= dy < SIZE:
+                out[dy][dx] = c
+    return out
 
 
 def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[int]]]) -> None:
     ox = frame_index * SIZE
     draw = ImageDraw.Draw(img)
 
-    frame_to_symbol = [
-        (3, True),
-        (2, True),
-        (1, True),
-        (0, True),
-        (0, False),
-        (1, False),
-        (2, False),
-        (3, False),
-        (3, False),
-    ]
-
-    symbol_index, mirrored = frame_to_symbol[frame_index]
-    pixels = base_symbols[symbol_index]
-    if mirrored:
-        pixels = mirror_pixels(pixels)
+    # Match Sopwith symbol selection for normal orientation:
+    # symbol_plane[angle % 4].sym[angle / 4]
+    angle = frame_index & 0x0F
+    symbol_index = angle & 0x03
+    rotations = angle >> 2
+    pixels = transform_symbol(base_symbols[symbol_index], rotations, False)
     blit_pixels(img, ox, pixels)
 
     prop_color = 6
-    nose_x, nose_y = find_nose(pixels, mirrored)
+    facing_left = 4 <= angle <= 12
+    nose_x, nose_y = find_nose(pixels, facing_left)
 
-    if mirrored:
+    if facing_left:
         prop_x = nose_x - 1
     else:
         prop_x = nose_x + 1
-
-    # User tuning: when level and facing right, move prop 2px further right.
-    if frame_index == 4:
-        prop_x += 1
 
     prop_x = max(0, min(SIZE - 1, prop_x))
 

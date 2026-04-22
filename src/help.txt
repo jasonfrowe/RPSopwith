@@ -8,7 +8,8 @@ Milestone 1 target:
 - Keyboard and gamepad input
 
 Current controls:
-- Move: Arrow keys or WASD, gamepad D-pad/left stick
+- Flaps: Down/Up arrows or S/W, gamepad down/up
+- Throttle: Left/Right arrows or A/D, gamepad left/right
 - Fire: Space or Z, gamepad A
 - Bomb (terrain crater test): X, gamepad B
 - Reset from crash: Enter, gamepad Start
