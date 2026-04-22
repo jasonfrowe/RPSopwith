@@ -12,6 +12,7 @@ typedef struct game_state_s {
     uint16_t world_x;
     int16_t plane_x;
     int16_t plane_y;
+    int8_t plane_bank;
     uint8_t terrain_edit_cooldown;
     bool crashed;
 } game_state_t;

@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+import re
+
+from PIL import Image, ImageDraw
+
+FRAME_COUNT = 9
+SIZE = 16
+
+SOPWITH_SYMBOL_PATH = Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.c")
+
+COLOR_CHARS = " *-#"
+
+
+def parse_swplnsym_text(path: Path) -> list[list[str]]:
+    src = path.read_text(encoding="utf-8")
+    start = src.find("static const char *swplnsym[] = {")
+    if start < 0:
+        raise RuntimeError("swplnsym block not found")
+
+    end = src.find("};", start)
+    if end < 0:
+        raise RuntimeError("swplnsym block end not found")
+
+    block = src[start:end]
+    literals = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', block)
+
+    if len(literals) % SIZE != 0:
+        raise RuntimeError("Unexpected swplnsym literal count")
+
+    symbols: list[list[str]] = []
+    for i in range(0, len(literals), SIZE):
+        lines = []
+        for lit in literals[i : i + SIZE]:
+            line = bytes(lit, "utf-8").decode("unicode_escape")
+            line = line.rstrip("\n")
+            lines.append(line)
+        symbols.append(lines)
+
+    return symbols
+
+
+def symbol_to_pixels(lines: list[str]) -> list[list[int]]:
+    out = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+    for y in range(min(SIZE, len(lines))):
+        row = lines[y]
+        for x in range(SIZE):
+            src_x = x * 2
+            if src_x >= len(row):
+                continue
+            ch = row[src_x]
+            c = COLOR_CHARS.find(ch)
+            if c < 0:
+                c = 0
+
+            # Map Sopwith levels into sprite palette slots.
+            if c == 1:
+                c = 3
+            elif c == 2:
+                c = 4
+            elif c == 3:
+                c = 5
+
+            out[y][x] = c
+    return out
+
+
+def mirror_pixels(pixels: list[list[int]]) -> list[list[int]]:
+    return [list(reversed(row)) for row in pixels]
+
+
+def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
+    for y in range(SIZE):
+        for x in range(SIZE):
+            c = pixels[y][x]
+            if c:
+                img.putpixel((ox + x, y), c)
+
+
+def frame_bank(index: int) -> int:
+    return index - 4
+
+
+def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[int]]]) -> None:
+    ox = frame_index * SIZE
+    draw = ImageDraw.Draw(img)
+
+    frame_to_symbol = [
+        (3, True),
+        (2, True),
+        (1, True),
+        (0, True),
+        (0, False),
+        (1, False),
+        (2, False),
+        (3, False),
+        (3, False),
+    ]
+
+    symbol_index, mirrored = frame_to_symbol[frame_index]
+    pixels = base_symbols[symbol_index]
+    if mirrored:
+        pixels = mirror_pixels(pixels)
+    blit_pixels(img, ox, pixels)
+
+    prop_color = 6
+    prop_x = 13 + ((frame_index >> 1) & 1)
+    draw.line([(ox + prop_x, 6), (ox + prop_x, 8)], fill=prop_color)
+
+
+def main() -> None:
+    if not SOPWITH_SYMBOL_PATH.exists():
+        raise RuntimeError(f"Sopwith symbols not found at {SOPWITH_SYMBOL_PATH}")
+
+    symbols_text = parse_swplnsym_text(SOPWITH_SYMBOL_PATH)
+    if len(symbols_text) < 4:
+        raise RuntimeError("Expected at least 4 plane symbol definitions")
+
+    base_symbols = [symbol_to_pixels(s) for s in symbols_text[:4]]
+
+    img = Image.new("P", (SIZE * FRAME_COUNT, SIZE), 0)
+
+    palette = [0] * (256 * 3)
+    colors = {
+        0: (0, 0, 0),
+        1: (112, 184, 248),
+        2: (80, 56, 24),
+        3: (252, 252, 252),
+        4: (128, 0, 0),
+        5: (0, 160, 0),
+        6: (255, 255, 80),
+    }
+    for idx, (r, g, b) in colors.items():
+        palette[idx * 3 + 0] = r
+        palette[idx * 3 + 1] = g
+        palette[idx * 3 + 2] = b
+    img.putpalette(palette)
+
+    for i in range(FRAME_COUNT):
+        draw_frame(img, i, base_symbols)
+
+    img.save("assets/sprites/player_bank_strip.png")
+
+
+if __name__ == "__main__":
+    main()
