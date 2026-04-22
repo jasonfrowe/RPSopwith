@@ -6,9 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "constants.h"
+
 enum {
-    KEYBOARD_INPUT_ADDR = 0xFFA0,
-    GAMEPAD_INPUT_ADDR = 0xFF78
+    KEYBOARD_INPUT_ADDR = RPS_KEYBOARD_INPUT_ADDR,
+    GAMEPAD_INPUT_ADDR = RPS_GAMEPAD_INPUT_ADDR
 };
 
 #define JOYSTICK_CONFIG_FILE "JOYSTICK_SH.DAT"

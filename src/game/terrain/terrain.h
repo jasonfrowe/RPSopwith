@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define TERRAIN_WORLD_WIDTH 1024u
+#include "constants.h"
 
 void terrain_init(void);
 uint8_t terrain_height_at_world_x(uint16_t world_x);
