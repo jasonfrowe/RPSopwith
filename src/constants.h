@@ -15,6 +15,22 @@
 #define TERRAIN_WORLD_WIDTH 1024u
 
 // -----------------------------------------------------------------------------
+// Flight model (Sopwith-inspired 10 Hz tuning)
+// -----------------------------------------------------------------------------
+
+#define RPS_FPS 10u
+#define RPS_MIN_SPEED 4
+#define RPS_MAX_SPEED 8
+#define RPS_MAX_THROTTLE 4
+
+#define RPS_FLAP_PITCH_MIN (-4)
+#define RPS_FLAP_PITCH_MAX 4
+
+#define RPS_TAKEOFF_SPEED 6
+#define RPS_TAKEOFF_LIFT_VY (-3)
+#define RPS_GRAVITY_PER_TICK 1
+
+// -----------------------------------------------------------------------------
 // XRAM layout (Phase 0/1): packed Mode-2 terrain resources
 // -----------------------------------------------------------------------------
 // Keeping this centralized mirrors the RPDemo style and makes growth visible.
@@ -48,7 +64,7 @@
 
 #define RPS_PLAYER_BANK_MIN (-4)
 #define RPS_PLAYER_BANK_MAX 4
-#define RPS_PLAYER_BANK_FRAME_COUNT 9u
+#define RPS_PLAYER_BANK_FRAME_COUNT 16u
 
 #define RPS_XRAM_MODE5_CONFIG_ADDR (((RPS_XRAM_MODE2_END + 0x000Fu) & ~0x000Fu))
 #define RPS_XRAM_MODE5_CONFIG_BYTES (RPS_MODE5_SPRITE_CONFIG_BYTES * RPS_MODE5_SPRITE_CAPACITY)
