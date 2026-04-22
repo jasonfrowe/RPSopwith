@@ -35,7 +35,27 @@
 #define RPS_XRAM_MODE2_PALETTE_ADDR (RPS_XRAM_MODE2_TILESET_ADDR + RPS_MODE2_TILESET_BYTES)
 #define RPS_XRAM_MODE2_PALETTE_BYTES 0x0020u
 
-#define RPS_XRAM_VIDEO_END (RPS_XRAM_MODE2_PALETTE_ADDR + RPS_XRAM_MODE2_PALETTE_BYTES)
+#define RPS_XRAM_MODE2_END (RPS_XRAM_MODE2_PALETTE_ADDR + RPS_XRAM_MODE2_PALETTE_BYTES)
+
+// -----------------------------------------------------------------------------
+// Mode-5 placeholder sprite layout (single player sprite now, room to scale)
+// -----------------------------------------------------------------------------
+
+#define RPS_MODE5_SPRITE_SIZE_PX 16u
+#define RPS_MODE5_SPRITE_BYTES_4BPP 128u
+#define RPS_MODE5_SPRITE_CONFIG_BYTES 8u
+#define RPS_MODE5_SPRITE_CAPACITY 16u
+
+#define RPS_XRAM_MODE5_CONFIG_ADDR (((RPS_XRAM_MODE2_END + 0x000Fu) & ~0x000Fu))
+#define RPS_XRAM_MODE5_CONFIG_BYTES (RPS_MODE5_SPRITE_CONFIG_BYTES * RPS_MODE5_SPRITE_CAPACITY)
+
+#define RPS_XRAM_MODE5_SPRITE_DATA_ADDR (((RPS_XRAM_MODE5_CONFIG_ADDR + RPS_XRAM_MODE5_CONFIG_BYTES) + 0x00FFu) & ~0x00FFu)
+#define RPS_XRAM_MODE5_SPRITE_DATA_BYTES (RPS_MODE5_SPRITE_BYTES_4BPP * RPS_MODE5_SPRITE_CAPACITY)
+
+#define RPS_XRAM_MODE5_PALETTE_ADDR (RPS_XRAM_MODE5_SPRITE_DATA_ADDR + RPS_XRAM_MODE5_SPRITE_DATA_BYTES)
+#define RPS_XRAM_MODE5_PALETTE_BYTES 0x0020u
+
+#define RPS_XRAM_VIDEO_END (RPS_XRAM_MODE5_PALETTE_ADDR + RPS_XRAM_MODE5_PALETTE_BYTES)
 
 // -----------------------------------------------------------------------------
 // RIA fixed input buffers (provided by firmware in high XRAM)
