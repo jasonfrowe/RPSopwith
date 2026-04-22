@@ -78,6 +78,30 @@ def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
                 img.putpixel((ox + x, y), c)
 
 
+def find_nose(pixels: list[list[int]], mirrored: bool) -> tuple[int, int]:
+    coords = []
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if pixels[y][x] != 0:
+                coords.append((x, y))
+
+    if not coords:
+        return 8, 8
+
+    if mirrored:
+        nose_x = min(x for x, _ in coords)
+    else:
+        nose_x = max(x for x, _ in coords)
+
+    nose_y_samples = [y for x, y in coords if x == nose_x]
+    if nose_y_samples:
+        nose_y = int(sum(nose_y_samples) / len(nose_y_samples))
+    else:
+        nose_y = 7
+
+    return nose_x, nose_y
+
+
 def frame_bank(index: int) -> int:
     return index - 4
 
@@ -105,8 +129,22 @@ def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[
     blit_pixels(img, ox, pixels)
 
     prop_color = 6
-    prop_x = 13 + ((frame_index >> 1) & 1)
-    draw.line([(ox + prop_x, 6), (ox + prop_x, 8)], fill=prop_color)
+    nose_x, nose_y = find_nose(pixels, mirrored)
+
+    if mirrored:
+        prop_x = nose_x - 1
+    else:
+        prop_x = nose_x + 1
+
+    # User tuning: when level and facing right, move prop 2px further right.
+    if frame_index == 4:
+        prop_x += 1
+
+    prop_x = max(0, min(SIZE - 1, prop_x))
+
+    y0 = max(0, nose_y - 1)
+    y1 = min(SIZE - 1, nose_y + 1)
+    draw.line([(ox + prop_x, y0), (ox + prop_x, y1)], fill=prop_color)
 
 
 def main() -> None:
