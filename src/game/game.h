@@ -18,6 +18,8 @@ typedef struct game_state_s {
     uint8_t throttle;
     uint8_t speed;
     bool airborne;
+    bool plane_orient;
+    bool flip_latch;
     uint8_t terrain_edit_cooldown;
     bool crashed;
 } game_state_t;

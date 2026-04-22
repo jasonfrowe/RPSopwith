@@ -74,6 +74,8 @@ void game_init(game_state_t *state)
     state->throttle = 0;
     state->speed = 0;
     state->airborne = false;
+    state->plane_orient = false;
+    state->flip_latch = false;
     state->terrain_edit_cooldown = 0;
     state->crashed = false;
 
@@ -122,7 +124,16 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
             flaps = -1;
         }
 
-        nangle = wrap_angle16((int16_t)state->plane_pitch + flaps);
+        if (actions->flip && !state->flip_latch && state->airborne) {
+            state->plane_orient = !state->plane_orient;
+        }
+        state->flip_latch = actions->flip;
+
+        if (state->plane_orient) {
+            nangle = wrap_angle16((int16_t)state->plane_pitch - flaps);
+        } else {
+            nangle = wrap_angle16((int16_t)state->plane_pitch + flaps);
+        }
         nspeed = state->speed;
 
         // Match Sopwith cadence: converge speed every 4 ticks.
@@ -227,6 +238,8 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         state->plane_vy = 0;
         state->throttle = 0;
         state->speed = 0;
+        state->plane_orient = false;
+        state->flip_latch = false;
         state->crashed = false;
     }
 }
