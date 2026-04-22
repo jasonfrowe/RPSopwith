@@ -23,6 +23,7 @@ void game_init(game_state_t *state)
     state->world_x = RPS_SCREEN_WIDTH_PX / 2u;
     state->plane_x = (int16_t)(RPS_SCREEN_WIDTH_PX / 2u);
     state->plane_y = (int16_t)(RPS_SCREEN_HEIGHT_PX / 2u);
+    state->plane_bank = 0;
     state->terrain_edit_cooldown = 0;
     state->crashed = false;
 
@@ -33,6 +34,8 @@ void game_init(game_state_t *state)
 
 void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 {
+    int8_t bank_target = 0;
+
     state->tick_count_10hz++;
     state->prev_world_x = state->world_x;
 
@@ -41,10 +44,12 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         if (actions->left) {
             state->plane_x -= 2;
             state->world_x = (uint16_t)((state->world_x + TERRAIN_WORLD_WIDTH - 2) % TERRAIN_WORLD_WIDTH);
+            bank_target = RPS_PLAYER_BANK_MIN;
         }
         if (actions->right) {
             state->plane_x += 2;
             state->world_x = (uint16_t)((state->world_x + 2) % TERRAIN_WORLD_WIDTH);
+            bank_target = RPS_PLAYER_BANK_MAX;
         }
         if (actions->up) {
             state->plane_y -= 2;
@@ -59,6 +64,13 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 
     state->plane_x = clamp_i16(state->plane_x, 0, (int16_t)(RPS_SCREEN_WIDTH_PX - 1u));
     state->plane_y = clamp_i16(state->plane_y, 0, (int16_t)(RPS_SCREEN_HEIGHT_PX - 1u));
+
+    // Ease bank angle by one step per 10 Hz tick for smoother transitions.
+    if (state->plane_bank < bank_target) {
+        state->plane_bank++;
+    } else if (state->plane_bank > bank_target) {
+        state->plane_bank--;
+    }
 
     if (state->terrain_edit_cooldown > 0) {
         state->terrain_edit_cooldown--;

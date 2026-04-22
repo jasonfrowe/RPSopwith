@@ -20,11 +20,14 @@ enum {
 
     PLAYER_COLOR_BODY = 3,
     PLAYER_COLOR_WING = 4,
-    PLAYER_COLOR_TAIL = 5
+    PLAYER_COLOR_TAIL = 5,
+    PLAYER_COLOR_PROP = 6
 };
 
 static uint8_t s_surface_row_cache[RPS_TILEMAP_WIDTH_TILES];
 static uint8_t s_surface_row_cache_valid;
+static uint8_t s_player_last_frame = 0xFFu;
+static uint8_t s_prop_palette_phase = 0;
 
 static uint16_t wrap_world_x(int32_t x)
 {
@@ -75,40 +78,67 @@ static void write_mode5_palette_entry(uint8_t index, uint16_t rgb555)
     RIA.rw0 = (uint8_t)(rgb555 >> 8);
 }
 
-static void write_player_sprite_bitmap(void)
+static void sprite_set_pixel(uint8_t *sprite, uint8_t x, uint8_t y, uint8_t color)
 {
-    RIA.addr0 = RPS_XRAM_MODE5_SPRITE_DATA_ADDR;
-    RIA.step0 = 1;
+    uint8_t index;
+    uint8_t *byte_ptr;
 
-    for (uint8_t y = 0; y < RPS_MODE5_SPRITE_SIZE_PX; ++y) {
-        for (uint8_t x = 0; x < RPS_MODE5_SPRITE_SIZE_PX; x += 2) {
-            uint8_t c0 = 0;
-            uint8_t c1 = 0;
+    if (x >= RPS_MODE5_SPRITE_SIZE_PX || y >= RPS_MODE5_SPRITE_SIZE_PX) {
+        return;
+    }
 
-            uint8_t x0 = x;
-            uint8_t x1 = (uint8_t)(x + 1);
+    index = (uint8_t)(y * (RPS_MODE5_SPRITE_SIZE_PX / 2u) + (x >> 1));
+    byte_ptr = &sprite[index];
+    if ((x & 1u) == 0) {
+        *byte_ptr = (uint8_t)((*byte_ptr & 0x0Fu) | (color << 4));
+    } else {
+        *byte_ptr = (uint8_t)((*byte_ptr & 0xF0u) | (color & 0x0Fu));
+    }
+}
 
-            if ((y >= 4 && y <= 11) && (x0 >= 6 && x0 <= 9)) {
-                c0 = PLAYER_COLOR_BODY;
-            }
-            if ((y >= 4 && y <= 11) && (x1 >= 6 && x1 <= 9)) {
-                c1 = PLAYER_COLOR_BODY;
-            }
-            if (y == 7 && x0 >= 2 && x0 <= 13) {
-                c0 = PLAYER_COLOR_WING;
-            }
-            if (y == 7 && x1 >= 2 && x1 <= 13) {
-                c1 = PLAYER_COLOR_WING;
-            }
-            if ((y >= 10 && y <= 14) && (x0 == 5 || x0 == 10)) {
-                c0 = PLAYER_COLOR_TAIL;
-            }
-            if ((y >= 10 && y <= 14) && (x1 == 5 || x1 == 10)) {
-                c1 = PLAYER_COLOR_TAIL;
-            }
+static void write_player_frame_bitmap(uint8_t frame_index, int8_t bank)
+{
+    uint8_t sprite[RPS_MODE5_SPRITE_BYTES_4BPP];
+    uint8_t wing_left = (uint8_t)(3 + (bank < 0 ? -bank : 0));
+    uint8_t wing_right = (uint8_t)(12 - (bank > 0 ? bank : 0));
+    uint8_t prop_x = (uint8_t)(13 + ((frame_index >> 1) & 1u));
 
-            RIA.rw0 = (uint8_t)((c0 << 4) | c1);
+    memset(sprite, 0, sizeof(sprite));
+
+    for (uint8_t y = 4; y <= 11; ++y) {
+        for (uint8_t x = 6; x <= 9; ++x) {
+            sprite_set_pixel(sprite, x, y, PLAYER_COLOR_BODY);
         }
+    }
+
+    for (uint8_t x = wing_left; x <= wing_right; ++x) {
+        int16_t dy = ((int16_t)bank * ((int16_t)x - 8)) / 16;
+        uint8_t y = (uint8_t)(7 + dy);
+        sprite_set_pixel(sprite, x, y, PLAYER_COLOR_WING);
+    }
+
+    for (uint8_t y = 10; y <= 14; ++y) {
+        sprite_set_pixel(sprite, 5, y, PLAYER_COLOR_TAIL);
+        sprite_set_pixel(sprite, 10, y, PLAYER_COLOR_TAIL);
+    }
+    sprite_set_pixel(sprite, 4, 7, PLAYER_COLOR_TAIL);
+
+    sprite_set_pixel(sprite, prop_x, 6, PLAYER_COLOR_PROP);
+    sprite_set_pixel(sprite, prop_x, 7, PLAYER_COLOR_PROP);
+    sprite_set_pixel(sprite, prop_x, 8, PLAYER_COLOR_PROP);
+
+    RIA.addr0 = RPS_XRAM_MODE5_SPRITE_DATA_ADDR + ((unsigned)frame_index * RPS_MODE5_SPRITE_BYTES_4BPP);
+    RIA.step0 = 1;
+    for (uint8_t i = 0; i < RPS_MODE5_SPRITE_BYTES_4BPP; ++i) {
+        RIA.rw0 = sprite[i];
+    }
+}
+
+static void write_player_sprite_frames(void)
+{
+    for (uint8_t i = 0; i < RPS_PLAYER_BANK_FRAME_COUNT; ++i) {
+        int8_t bank = (int8_t)i + RPS_PLAYER_BANK_MIN;
+        write_player_frame_bitmap(i, bank);
     }
 }
 
@@ -116,23 +146,54 @@ static bool init_player_sprite_layer(void)
 {
     int16_t x = (int16_t)((RPS_SCREEN_WIDTH_PX - RPS_MODE5_SPRITE_SIZE_PX) / 2u);
     int16_t y = (int16_t)((RPS_SCREEN_HEIGHT_PX - RPS_MODE5_SPRITE_SIZE_PX) / 2u);
+    uint16_t frame_center_ptr = (uint16_t)(RPS_XRAM_MODE5_SPRITE_DATA_ADDR + ((RPS_PLAYER_BANK_FRAME_COUNT / 2u) * RPS_MODE5_SPRITE_BYTES_4BPP));
 
     xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, x_pos_px, x);
     xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, y_pos_px, y);
-    xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, xram_sprite_ptr, RPS_XRAM_MODE5_SPRITE_DATA_ADDR);
+    xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, xram_sprite_ptr, frame_center_ptr);
     xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, palette_ptr, RPS_XRAM_MODE5_PALETTE_ADDR);
 
     if (xreg_vga_mode(5, 0x0A, RPS_XRAM_MODE5_CONFIG_ADDR, 1, 1, 0, 0) < 0) {
         return false;
     }
 
+    // Palette is preloaded from generated asset at boot.
+    // Force index 0 transparent in case stale generated assets are present.
     write_mode5_palette_entry(0, 0x0000);
-    write_mode5_palette_entry(PLAYER_COLOR_BODY, 0xFFFF);
-    write_mode5_palette_entry(PLAYER_COLOR_WING, 0x7C00);
-    write_mode5_palette_entry(PLAYER_COLOR_TAIL, 0x03E0);
-    write_player_sprite_bitmap();
+    // We only animate prop color at runtime.
+    write_mode5_palette_entry(PLAYER_COLOR_PROP, 0x7FE0);
+    s_player_last_frame = 0xFFu;
+    s_prop_palette_phase = 0;
 
     return true;
+}
+
+static void update_player_sprite_animation(const game_state_t *state)
+{
+    static const uint16_t prop_colors[4] = {
+        0x0010,
+        0x021F,
+        0x03FF,
+        0x7FFF
+    };
+    uint8_t frame_index = (uint8_t)(state->plane_bank - RPS_PLAYER_BANK_MIN);
+
+    if (frame_index >= RPS_PLAYER_BANK_FRAME_COUNT) {
+        frame_index = (uint8_t)(RPS_PLAYER_BANK_FRAME_COUNT / 2u);
+    }
+
+    if (frame_index != s_player_last_frame) {
+        xram0_struct_set(
+            RPS_XRAM_MODE5_CONFIG_ADDR,
+            vga_mode5_sprite_t,
+            xram_sprite_ptr,
+            (uint16_t)(RPS_XRAM_MODE5_SPRITE_DATA_ADDR + ((unsigned)frame_index * RPS_MODE5_SPRITE_BYTES_4BPP))
+        );
+        s_player_last_frame = frame_index;
+    }
+
+    s_prop_palette_phase = (uint8_t)((s_prop_palette_phase + 1u) & 3u);
+    write_mode5_palette_entry(PLAYER_COLOR_PROP, prop_colors[s_prop_palette_phase]);
 }
 
 static void update_player_sprite_position(const game_state_t *state)
@@ -242,5 +303,6 @@ void platform_video_render(const game_state_t *state, uint8_t subframe)
     uint16_t camera_world_x = interpolate_world_x(state->prev_world_x, state->world_x, subframe);
 
     render_terrain_tilemap(camera_world_x);
+    update_player_sprite_animation(state);
     update_player_sprite_position(state);
 }
