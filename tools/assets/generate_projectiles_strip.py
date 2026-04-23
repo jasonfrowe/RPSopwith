@@ -96,6 +96,22 @@ def make_single_pixel_sprite(color_index: int) -> list[list[int]]:
     return out
 
 
+def mirror_h(pixels: list[list[int]]) -> list[list[int]]:
+    return [list(reversed(row)) for row in pixels]
+
+
+def mirror_v(pixels: list[list[int]]) -> list[list[int]]:
+    return [list(row) for row in reversed(pixels)]
+
+
+def rotate_cw(pixels: list[list[int]]) -> list[list[int]]:
+    return [[pixels[SIZE - 1 - y][x] for y in range(SIZE)] for x in range(SIZE)]
+
+
+def rotate_ccw(pixels: list[list[int]]) -> list[list[int]]:
+    return [[pixels[y][SIZE - 1 - x] for y in range(SIZE)] for x in range(SIZE)]
+
+
 def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
     for y in range(SIZE):
         for x in range(SIZE):
@@ -154,12 +170,29 @@ def main() -> int:
         return 1
 
     frames: list[list[list[int]]] = []
+    bomb_pixels = [ascii_to_pixels(sym) for sym in bomb]
 
     # Explicit tiny sprites for shot/smoke.
     frames.append(make_single_pixel_sprite(4))
     frames.append(make_single_pixel_sprite(5))
 
-    for arr in (bomb, missile, burst, flock, bird, birdsplat, debris):
+    # Bomb directions ordered like Sopwith symangle:
+    # right, down-right, down, down-left, left, up-left, up, up-right
+    # The base cardinal source sprite points right in the generated strip.
+    cardinal = bomb_pixels[0]
+    diagonal = bomb_pixels[1]
+    frames.extend([
+        cardinal,
+        mirror_v(diagonal),
+        rotate_cw(cardinal),
+        mirror_h(mirror_v(diagonal)),
+        mirror_h(cardinal),
+        mirror_h(diagonal),
+        rotate_ccw(cardinal),
+        diagonal,
+    ])
+
+    for arr in (missile, burst, flock, bird, birdsplat, debris):
         for sym in arr:
             frames.append(ascii_to_pixels(sym))
 
@@ -169,7 +202,7 @@ def main() -> int:
 
     print(f"Generated projectile strip: {len(frames)} frames")
     print(f"- shot/smoke: 2")
-    print(f"- bombs: {len(bomb)} missiles: {len(missile)} bursts: {len(burst)}")
+    print(f"- bombs: 8 missiles: {len(missile)} bursts: {len(burst)}")
     print(f"- flocks: {len(flock)} birds: {len(bird)} birdsplat: {len(birdsplat)} debris: {len(debris)}")
     print(f"Strip size: {img.width}x{img.height} -> {args.out_png}")
     print(f"Next: python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette {args.out_png}")

@@ -6,9 +6,9 @@
 #include "sprite_mode5.h"
 
 // Frame indices in projectiles_strip.png:
-// 0 shot, 1 smoke, 2-3 bomb, 4-7 missile, 8-9 burst, 10-11 flock.
-#define FLOCK_FRAME_A ((uint8_t)10u)
-#define FLOCK_FRAME_B ((uint8_t)11u)
+// 0 shot, 1 smoke, 2-9 bomb, 10-13 missile, 14-15 burst, 16-17 flock.
+#define FLOCK_FRAME_A ((uint8_t)16u)
+#define FLOCK_FRAME_B ((uint8_t)17u)
 
 // Faithful flock spawn X positions from SDL Sopwith original level (swgames.c).
 static const uint16_t s_flock_world_x[] = {370u, 1000u, 1630u, 2630u};

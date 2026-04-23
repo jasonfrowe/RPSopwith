@@ -30,10 +30,10 @@
 #define MAX_TARGETS             40                 // Max number of targets on screen
 
 #define PROJECTILE_DATA          (TARGETS_DATA + TARGETS_DATA_SIZE) // Address for projectile sprite graphics (not used yet)
-#define PROJECTILE_DATA_SIZE      0x0B80U            // 2944 bytes (23 frames of 16x16 at 4bpp)
+#define PROJECTILE_DATA_SIZE      0x0E80U            // 3712 bytes (29 frames of 16x16 at 4bpp)
 #define PROJECTILE_SPRITE_SIZE_PX 16                // Projectile sprite is 16x16 pixels
 #define PROJECTILE_FRAME_SIZE     0x0080U            // 128 bytes per 16x16 4bpp frame
-#define PROJECTILE_FRAME_COUNT    23                 // 23 frames different projectile graphics  
+#define PROJECTILE_FRAME_COUNT    29                 // 29 frames different projectile graphics
 #define MAX_PROJECTILES           20                 // Max number of projectiles on screen   
 #define MAX_FLOCK_SPRITES          4                 // Reserved ambient flock sprite slots
 #define MAX_COMBAT_PROJECTILES    (MAX_PROJECTILES - MAX_FLOCK_SPRITES)
