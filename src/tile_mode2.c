@@ -14,6 +14,18 @@ static uint8_t xram_read_u8(unsigned addr)
     return RIA.rw0;
 }
 
+static uint8_t tile_pixel_index(uint8_t tile_id, uint8_t x, uint8_t y)
+{
+    unsigned addr = GROUND_TILES + ((unsigned)tile_id * 32u) + ((unsigned)y * 4u) + (x >> 1);
+    uint8_t packed = xram_read_u8(addr);
+
+    if ((x & 1u) == 0u) {
+        return (uint8_t)((packed >> 4) & 0x0Fu);
+    }
+
+    return (uint8_t)(packed & 0x0Fu);
+}
+
 static int16_t wrap_world_px(int32_t x)
 {
     int32_t world_width_px = (int32_t)GROUND_WIDTH * 8;
@@ -66,11 +78,18 @@ void tile_mode2_set_scroll_x(int16_t world_scroll_px)
 int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px)
 {
     uint16_t tile_x = (uint16_t)((world_x_px >> 3) % GROUND_WIDTH);
+    uint8_t local_x = (uint8_t)(world_x_px & 0x07u);
 
     for (uint16_t row = 0; row < GROUND_HEIGHT; ++row) {
         unsigned tile_addr = GROUND_DATA + ((unsigned)row * GROUND_WIDTH) + tile_x;
-        if (xram_read_u8(tile_addr) != 0u) {
-            return (int16_t)(row * 8);
+        uint8_t tile_id = xram_read_u8(tile_addr);
+
+        if (tile_id != 0u) {
+            for (uint8_t y = 0; y < 8u; ++y) {
+                if (tile_pixel_index(tile_id, local_x, y) == 2u) {
+                    return (int16_t)((row * 8u) + y);
+                }
+            }
         }
     }
 
