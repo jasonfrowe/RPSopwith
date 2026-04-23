@@ -96,6 +96,10 @@
 // RIA fixed input buffers (provided by firmware in high XRAM)
 // -----------------------------------------------------------------------------
 
+// OPL2 sound chip register page (native RIA mapping).
+#define OPL_XRAM_ADDR 0xFE00u
+#define OPL_SIZE 0x0100u
+
 #define RPS_GAMEPAD_INPUT_ADDR 0xFF78u
 #define RPS_KEYBOARD_INPUT_ADDR 0xFFA0u
 
@@ -137,6 +141,14 @@ _Static_assert(
 _Static_assert(
 	RPS_XRAM_VIDEO_END <= RPS_GAMEPAD_INPUT_ADDR,
 	"Runtime video XRAM overlaps firmware gamepad buffer"
+);
+_Static_assert(
+	RPS_XRAM_VIDEO_END <= OPL_XRAM_ADDR,
+	"Runtime video XRAM overlaps OPL2 register page"
+);
+_Static_assert(
+	OPL_XRAM_ADDR + OPL_SIZE <= RPS_GAMEPAD_INPUT_ADDR,
+	"OPL2 register page overlaps firmware gamepad buffer"
 );
 _Static_assert(
 	RPS_GAMEPAD_INPUT_ADDR + RPS_GAMEPAD_INPUT_BYTES <= RPS_KEYBOARD_INPUT_ADDR,
