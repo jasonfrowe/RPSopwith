@@ -41,6 +41,7 @@ enum {
 
     GP_BTN_A = 0x01,
     GP_BTN_B = 0x02,
+    GP_BTN_X = 0x08,
     GP_BTN_Y = 0x10,
 
     GP_BTN_SELECT = 0x04,
@@ -59,13 +60,13 @@ enum {
     ACTION_MOVE_DOWN,
     ACTION_MOVE_LEFT,
     ACTION_MOVE_RIGHT,
-    ACTION_BTN_FIRE,
-    ACTION_BTN_BOMB,
-    ACTION_UNUSED_BTN_X,
-    ACTION_BTN_FLIP,
-    ACTION_UNUSED_BTN_LT,
-    ACTION_UNUSED_BTN_RT,
-    ACTION_BTN_LAND_HOME,
+    ACTION_BTN_A,
+    ACTION_BTN_B,
+    ACTION_BTN_X,
+    ACTION_BTN_Y,
+    ACTION_BTN_LT,
+    ACTION_BTN_RT,
+    ACTION_BTN_SELECT,
     ACTION_BTN_START,
     ACTION_COUNT
 };
@@ -100,6 +101,7 @@ typedef struct joystick_mapping_s {
 static uint8_t s_keystate[32];
 static gamepad_state_t s_gamepad0;
 static button_mapping_t s_button_mappings[ACTION_COUNT];
+static input_actions_t s_last_actions;
 
 static bool key_is_down(uint8_t hid_key)
 {
@@ -155,21 +157,25 @@ static void reset_default_mappings(void)
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_button2 = GP_FIELD_DPAD;
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_mask2 = GP_DPAD_RIGHT;
 
-    s_button_mappings[ACTION_BTN_FLIP].keyboard_key = KEY_C;
-    s_button_mappings[ACTION_BTN_FLIP].gamepad_button = GP_FIELD_BTN0;
-    s_button_mappings[ACTION_BTN_FLIP].gamepad_mask = GP_BTN_Y;
+    s_button_mappings[ACTION_BTN_Y].keyboard_key = KEY_C;
+    s_button_mappings[ACTION_BTN_Y].gamepad_button = GP_FIELD_BTN0;
+    s_button_mappings[ACTION_BTN_Y].gamepad_mask = GP_BTN_Y;
 
-    s_button_mappings[ACTION_BTN_FIRE].keyboard_key = KEY_Z;
-    s_button_mappings[ACTION_BTN_FIRE].gamepad_button = GP_FIELD_BTN0;
-    s_button_mappings[ACTION_BTN_FIRE].gamepad_mask = GP_BTN_A;
+    s_button_mappings[ACTION_BTN_A].keyboard_key = KEY_A;
+    s_button_mappings[ACTION_BTN_A].gamepad_button = GP_FIELD_BTN0;
+    s_button_mappings[ACTION_BTN_A].gamepad_mask = GP_BTN_A;
 
-    s_button_mappings[ACTION_BTN_BOMB].keyboard_key = KEY_X;
-    s_button_mappings[ACTION_BTN_BOMB].gamepad_button = GP_FIELD_BTN0;
-    s_button_mappings[ACTION_BTN_BOMB].gamepad_mask = GP_BTN_B;
+    s_button_mappings[ACTION_BTN_X].keyboard_key = KEY_X;
+    s_button_mappings[ACTION_BTN_X].gamepad_button = GP_FIELD_BTN0;
+    s_button_mappings[ACTION_BTN_X].gamepad_mask = GP_BTN_X;
 
-    s_button_mappings[ACTION_BTN_LAND_HOME].keyboard_key = KEY_HOME;
-    s_button_mappings[ACTION_BTN_LAND_HOME].gamepad_button = GP_FIELD_BTN1;
-    s_button_mappings[ACTION_BTN_LAND_HOME].gamepad_mask = GP_BTN_SELECT;
+    s_button_mappings[ACTION_BTN_B].keyboard_key = KEY_Z;
+    s_button_mappings[ACTION_BTN_B].gamepad_button = GP_FIELD_BTN0;
+    s_button_mappings[ACTION_BTN_B].gamepad_mask = GP_BTN_B;
+
+    s_button_mappings[ACTION_BTN_SELECT].keyboard_key = KEY_HOME;
+    s_button_mappings[ACTION_BTN_SELECT].gamepad_button = GP_FIELD_BTN1;
+    s_button_mappings[ACTION_BTN_SELECT].gamepad_mask = GP_BTN_SELECT;
 
     s_button_mappings[ACTION_BTN_START].keyboard_key = KEY_ENTER;
     s_button_mappings[ACTION_BTN_START].gamepad_button = GP_FIELD_BTN1;
@@ -275,12 +281,12 @@ void input_poll(input_actions_t *actions)
 
     actions->up = (unsigned char)(action_pressed(ACTION_MOVE_UP) || key_is_down(KEY_W));
     actions->down = (unsigned char)(action_pressed(ACTION_MOVE_DOWN) || key_is_down(KEY_S));
-    actions->left = (unsigned char)(action_pressed(ACTION_MOVE_LEFT) || key_is_down(KEY_A));
+    actions->left = (unsigned char)action_pressed(ACTION_MOVE_LEFT);
     actions->right = (unsigned char)(action_pressed(ACTION_MOVE_RIGHT) || key_is_down(KEY_D));
-    actions->flip = (unsigned char)action_pressed(ACTION_BTN_FLIP);
-    actions->land = (unsigned char)(action_pressed(ACTION_BTN_LAND_HOME) || key_is_down(KEY_H));
-    actions->fire = (unsigned char)(action_pressed(ACTION_BTN_FIRE) || key_is_down(KEY_SPACE));
-    actions->bomb = (unsigned char)action_pressed(ACTION_BTN_BOMB);
+    actions->flip = (unsigned char)action_pressed(ACTION_BTN_Y);
+    actions->land = (unsigned char)(action_pressed(ACTION_BTN_SELECT) || key_is_down(KEY_H));
+    actions->fire = (unsigned char)(action_pressed(ACTION_BTN_X) || key_is_down(KEY_SPACE));
+    actions->bomb = (unsigned char)action_pressed(ACTION_BTN_A);
     actions->start = (unsigned char)action_pressed(ACTION_BTN_START);
 }
 
@@ -289,10 +295,16 @@ void input_flight_init(void)
     flight_init();
 }
 
+const input_actions_t *input_last_actions(void)
+{
+    return &s_last_actions;
+}
+
 void input_flight_update(void)
 {
     input_actions_t actions;
 
     input_poll(&actions);
+    s_last_actions = actions;
     flight_update(&actions);
 }
