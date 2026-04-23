@@ -1,5 +1,7 @@
 #include "game/game.h"
 
+#include <rp6502.h>
+
 #include "constants.h"
 #include "config/feature_flags.h"
 #include "game/terrain/terrain.h"
@@ -72,6 +74,68 @@ static int16_t wrap_world_x_i16(int32_t x)
     return (int16_t)x;
 }
 
+static uint8_t player_frame_index_for_state(const game_state_t *state)
+{
+    uint8_t angle = (uint8_t)state->plane_pitch & 0x0Fu;
+
+    if (state->plane_orient) {
+        uint8_t a = (uint8_t)((16u - angle) & 0x0Fu);
+        return (uint8_t)(16u + a);
+    }
+
+    return angle;
+}
+
+static uint8_t sprite_pixel_4bpp(uint8_t frame_index, uint8_t x, uint8_t y)
+{
+    uint16_t frame_addr;
+    uint16_t pixel_byte_addr;
+    uint8_t packed;
+
+    if (x >= RPS_MODE5_SPRITE_SIZE_PX || y >= RPS_MODE5_SPRITE_SIZE_PX) {
+        return 0;
+    }
+
+    frame_addr = (uint16_t)(RPS_XRAM_MODE5_SPRITE_DATA_ADDR +
+                            ((unsigned)frame_index * RPS_MODE5_SPRITE_BYTES_4BPP));
+    pixel_byte_addr = (uint16_t)(frame_addr + ((unsigned)y * (RPS_MODE5_SPRITE_SIZE_PX / 2u)) + (x >> 1));
+
+    RIA.addr0 = pixel_byte_addr;
+    RIA.step0 = 1;
+    packed = RIA.rw0;
+
+    if ((x & 1u) == 0u) {
+        return (uint8_t)((packed >> 4) & 0x0Fu);
+    }
+    return (uint8_t)(packed & 0x0Fu);
+}
+
+static bool plane_collides_with_terrain(const game_state_t *state, int16_t plane_top_y)
+{
+    int16_t center_world_x = (int16_t)state->world_x;
+    uint8_t frame_index = player_frame_index_for_state(state);
+
+    for (uint8_t sx = 0; sx < RPS_MODE5_SPRITE_SIZE_PX; ++sx) {
+        int16_t world_x = wrap_world_x_i16((int32_t)center_world_x + (int16_t)sx - 8);
+        int16_t ground_y = (int16_t)terrain_height_at_world_x((uint16_t)world_x);
+        int16_t sy = (int16_t)(ground_y - plane_top_y);
+
+        if (sy >= (int16_t)RPS_MODE5_SPRITE_SIZE_PX) {
+            continue;
+        }
+
+        if (sy < 0) {
+            return true;
+        }
+
+        if (sprite_pixel_4bpp(frame_index, sx, (uint8_t)sy) != 0u) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Sopwith table: sine(pi/8 increments) * 256.
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -115,6 +179,7 @@ void game_init(game_state_t *state)
 void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 {
     int16_t terrain_y;
+    int16_t grounded_y;
     int8_t bank_target;
     int8_t flaps = 0;
     int16_t nspeed;
@@ -259,7 +324,15 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         }
 
         if (!state->airborne) {
-            state->plane_y = (int16_t)(terrain_y - (int16_t)RPS_MODE5_SPRITE_SIZE_PX);
+            grounded_y = (int16_t)(terrain_y - (int16_t)RPS_MODE5_SPRITE_SIZE_PX);
+
+            // Match Sopwith feel on terrain contact: if the active sprite mask
+            // intersects a rising wall while rolling, treat as a crash.
+            if (state->speed > 0 && plane_collides_with_terrain(state, grounded_y)) {
+                state->crashed = true;
+            }
+
+            state->plane_y = grounded_y;
             state->plane_vy = 0;
 
             // Sopwith-like: once rolling at minimum speed, pulling up can lift off.
@@ -280,7 +353,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
                 state->stall_tick = stall_count;
             }
 
-            if ((int16_t)(state->plane_y + (int16_t)RPS_MODE5_SPRITE_SIZE_PX) > terrain_y) {
+            if (plane_collides_with_terrain(state, state->plane_y)) {
                 if (state->plane_vy > 2 || state->speed > (RPS_MIN_SPEED + 2)) {
                     state->crashed = true;
                 } else {
@@ -299,7 +372,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
             state->plane_vy = (int8_t)(-dy);
             state->plane_y += state->plane_vy;
 
-            if ((int16_t)(state->plane_y + (int16_t)RPS_MODE5_SPRITE_SIZE_PX) > terrain_y) {
+            if (plane_collides_with_terrain(state, state->plane_y)) {
                 // Hard impact still crashes; gentle contact lands.
                 if (state->plane_vy > 2 || state->speed > (RPS_MIN_SPEED + 2)) {
                     state->crashed = true;
