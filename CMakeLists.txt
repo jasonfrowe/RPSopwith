@@ -22,6 +22,8 @@ add_executable(RPSopwith)
 set(PLAYER_STRIP_PNG ${CMAKE_CURRENT_SOURCE_DIR}/assets/sprites/player_bank_strip.png)
 set(PLAYER_BIN ${CMAKE_CURRENT_BINARY_DIR}/assets/player_bank_strip_4bpp.bin)
 set(PLAYER_PALETTE_BIN ${CMAKE_CURRENT_BINARY_DIR}/assets/player_bank_strip_4bpp_palette.bin)
+set(TERRAIN_TILESET_BIN ${CMAKE_CURRENT_BINARY_DIR}/assets/terrain_tileset_4bpp.bin)
+set(TERRAIN_TILEMAP_BIN ${CMAKE_CURRENT_BINARY_DIR}/assets/terrain_world_tilemap.bin)
 
 add_custom_command(
     OUTPUT ${PLAYER_STRIP_PNG}
@@ -42,9 +44,26 @@ add_custom_command(
     DEPENDS ${PLAYER_STRIP_PNG} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/convert_sprite.py
 )
 
+add_custom_command(
+    OUTPUT ${TERRAIN_TILESET_BIN} ${TERRAIN_TILEMAP_BIN}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/assets
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_terrain_mode2_assets.py
+            --ground-header ${CMAKE_CURRENT_SOURCE_DIR}/src/game/terrain/original_ground_3000.h
+            --tileset-bin ${TERRAIN_TILESET_BIN}
+            --tilemap-bin ${TERRAIN_TILEMAP_BIN}
+            --screen-height 240
+            --tile-size 8
+            --y-offset 0
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_terrain_mode2_assets.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/game/terrain/original_ground_3000.h
+)
+
 rp6502_asset(RPSopwith help src/help.txt)
-rp6502_asset(RPSopwith 0x12800 ${PLAYER_BIN})
-rp6502_asset(RPSopwith 0x13800 ${PLAYER_PALETTE_BIN})
+rp6502_asset(RPSopwith 0x10A00 ${TERRAIN_TILESET_BIN})
+rp6502_asset(RPSopwith 0x12B00 ${PLAYER_BIN})
+rp6502_asset(RPSopwith 0x13B00 ${PLAYER_PALETTE_BIN})
+rp6502_asset(RPSopwith 0x13C00 ${TERRAIN_TILEMAP_BIN})
 rp6502_executable(RPSopwith DATA file RESET file)
 target_include_directories(RPSopwith PRIVATE src)
 target_compile_definitions(RPSopwith PRIVATE

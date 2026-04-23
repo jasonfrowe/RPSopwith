@@ -5,7 +5,14 @@
 #include <string.h>
 
 #include "constants.h"
-#include "game/terrain/terrain.h"
+
+#ifndef COLOR_FROM_RGB8
+#define COLOR_FROM_RGB8(r,g,b) (((b >> 3) << 11) | ((g >> 3) << 6) | (r >> 3))
+#endif
+
+#ifndef COLOR_ALPHA_MASK
+#define COLOR_ALPHA_MASK (1u << 5)
+#endif
 
 typedef struct {
     int16_t x_pos_px;
@@ -15,17 +22,15 @@ typedef struct {
 } vga_mode5_sprite_t;
 
 enum {
-    TILE_INDEX_SKY = 1,
-    TILE_INDEX_GROUND = 2,
-
     PLAYER_COLOR_BODY = 3,
     PLAYER_COLOR_WING = 4,
     PLAYER_COLOR_TAIL = 5,
     PLAYER_COLOR_PROP = 6
 };
 
-static uint8_t s_surface_row_cache[RPS_TILEMAP_WIDTH_TILES];
-static uint8_t s_surface_row_cache_valid;
+static bool s_terrain_map_initialized = false;
+static uint16_t s_terrain_loaded_left_tile = 0;
+static uint8_t s_terrain_loaded_left_map_col = 0;
 static uint8_t s_player_last_frame = 0xFFu;
 static uint8_t s_prop_palette_phase = 0;
 
@@ -36,6 +41,25 @@ static uint16_t wrap_world_x(int32_t x)
         wrapped += TERRAIN_WORLD_WIDTH;
     }
     return (uint16_t)wrapped;
+}
+
+static int32_t positive_mod_i32(int32_t value, int32_t modulus)
+{
+    int32_t result = value % modulus;
+    if (result < 0) {
+        result += modulus;
+    }
+    return result;
+}
+
+static int32_t floor_div_tile(int32_t x)
+{
+    int32_t d = x / (int32_t)RPS_TILE_SIZE_PX;
+    int32_t r = x % (int32_t)RPS_TILE_SIZE_PX;
+    if (r < 0) {
+        d--;
+    }
+    return d;
 }
 
 static uint16_t interpolate_world_x(uint16_t prev_x, uint16_t curr_x, uint8_t subframe)
@@ -51,23 +75,49 @@ static uint16_t interpolate_world_x(uint16_t prev_x, uint16_t curr_x, uint8_t su
     return wrap_world_x((int32_t)prev_x + ((int32_t)diff * (int32_t)subframe) / 6);
 }
 
+static uint8_t xram_read_u8(unsigned addr)
+{
+    RIA.addr0 = addr;
+    RIA.step0 = 1;
+    return RIA.rw0;
+}
+
+static void xram_write_u8(unsigned addr, uint8_t value)
+{
+    RIA.addr0 = addr;
+    RIA.step0 = 1;
+    RIA.rw0 = value;
+}
+
+static uint16_t wrap_world_tile_x(int32_t tile_x)
+{
+    int32_t wrapped = tile_x % (int32_t)TERRAIN_WORLD_WIDTH_TILES;
+    if (wrapped < 0) {
+        wrapped += (int32_t)TERRAIN_WORLD_WIDTH_TILES;
+    }
+    return (uint16_t)wrapped;
+}
+
+static int16_t cyclic_world_tile_delta(uint16_t from_tile, uint16_t to_tile)
+{
+    int16_t delta = (int16_t)to_tile - (int16_t)from_tile;
+    int16_t half = (int16_t)(TERRAIN_WORLD_WIDTH_TILES / 2u);
+
+    if (delta > half) {
+        delta -= (int16_t)TERRAIN_WORLD_WIDTH_TILES;
+    } else if (delta < -half) {
+        delta += (int16_t)TERRAIN_WORLD_WIDTH_TILES;
+    }
+
+    return delta;
+}
+
 static void write_palette_entry(uint8_t index, uint16_t rgb555)
 {
     RIA.addr0 = RPS_XRAM_MODE2_PALETTE_ADDR + ((unsigned)index * 2u);
     RIA.step0 = 1;
     RIA.rw0 = (uint8_t)(rgb555 & 0xFFu);
     RIA.rw0 = (uint8_t)(rgb555 >> 8);
-}
-
-static void write_solid_4bpp_tile(uint8_t tile_index, uint8_t color_index)
-{
-    uint8_t packed = (uint8_t)((color_index << 4) | color_index);
-
-    RIA.addr0 = RPS_XRAM_MODE2_TILESET_ADDR + ((unsigned)tile_index * RPS_MODE2_TILE_BYTES_4BPP);
-    RIA.step0 = 1;
-    for (uint8_t i = 0; i < RPS_MODE2_TILE_BYTES_4BPP; ++i) {
-        RIA.rw0 = packed;
-    }
 }
 
 static void write_mode5_palette_entry(uint8_t index, uint16_t rgb555)
@@ -228,56 +278,66 @@ static void update_player_sprite_position(const game_state_t *state)
     xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, y_pos_px, sprite_y);
 }
 
+static void load_world_tile_column(uint8_t map_col, uint16_t world_tile_x)
+{
+    for (uint8_t row = 0; row < RPS_TILEMAP_HEIGHT_TILES; ++row) {
+        unsigned src = RPS_XRAM_WORLD_TILEMAP_ADDR +
+                       ((unsigned)row * TERRAIN_WORLD_WIDTH_TILES) +
+                       world_tile_x;
+        unsigned dst = RPS_XRAM_MODE2_TILEMAP_ADDR +
+                       ((unsigned)row * RPS_TILEMAP_WIDTH_TILES) +
+                       map_col;
+        xram_write_u8(dst, xram_read_u8(src));
+    }
+}
+
 static void render_terrain_tilemap(uint16_t camera_world_x)
 {
     int32_t camera_left = (int32_t)camera_world_x - ((int32_t)RPS_SCREEN_WIDTH_PX / 2);
+    uint16_t camera_left_tile = wrap_world_tile_x(floor_div_tile(camera_left));
+    int16_t camera_x_subtile_px = (int16_t)positive_mod_i32(camera_left, (int32_t)RPS_TILE_SIZE_PX);
 
-    for (uint8_t tx = 0; tx < RPS_TILEMAP_WIDTH_TILES; ++tx) {
-        uint16_t sample_world_x = wrap_world_x(camera_left + ((int32_t)tx * RPS_TILE_SIZE_PX) + (RPS_TILE_SIZE_PX / 2));
-        uint8_t surface_px = terrain_height_at_world_x(sample_world_x);
-        uint8_t surface_row = (uint8_t)(surface_px / RPS_TILE_SIZE_PX);
-        uint8_t old_row = s_surface_row_cache[tx];
-
-        if (!s_surface_row_cache_valid || old_row == 0xFFu) {
-            RIA.addr0 = RPS_XRAM_MODE2_TILEMAP_ADDR + tx;
-            RIA.step0 = RPS_TILEMAP_WIDTH_TILES;
-            for (uint8_t ty = 0; ty < RPS_TILEMAP_HEIGHT_TILES; ++ty) {
-                RIA.rw0 = (ty >= surface_row) ? TILE_INDEX_GROUND : TILE_INDEX_SKY;
-            }
-            s_surface_row_cache[tx] = surface_row;
-            continue;
+    if (!s_terrain_map_initialized) {
+        s_terrain_loaded_left_tile = camera_left_tile;
+        s_terrain_loaded_left_map_col = 0u;
+        for (uint8_t map_col = 0; map_col < RPS_TILEMAP_WIDTH_TILES; ++map_col) {
+            uint16_t world_tile = (uint16_t)((s_terrain_loaded_left_tile + map_col) % TERRAIN_WORLD_WIDTH_TILES);
+            load_world_tile_column(map_col, world_tile);
         }
-
-        if (old_row == surface_row) {
-            continue;
-        }
-
-        if (surface_row > old_row) {
-            // Ground moved down: previous ground strip becomes sky.
-            RIA.addr0 = RPS_XRAM_MODE2_TILEMAP_ADDR + tx + ((unsigned)old_row * RPS_TILEMAP_WIDTH_TILES);
-            RIA.step0 = RPS_TILEMAP_WIDTH_TILES;
-            for (uint8_t ty = old_row; ty < surface_row; ++ty) {
-                RIA.rw0 = TILE_INDEX_SKY;
-            }
-        } else {
-            // Ground moved up: previous sky strip becomes ground.
-            RIA.addr0 = RPS_XRAM_MODE2_TILEMAP_ADDR + tx + ((unsigned)surface_row * RPS_TILEMAP_WIDTH_TILES);
-            RIA.step0 = RPS_TILEMAP_WIDTH_TILES;
-            for (uint8_t ty = surface_row; ty < old_row; ++ty) {
-                RIA.rw0 = TILE_INDEX_GROUND;
-            }
-        }
-
-        s_surface_row_cache[tx] = surface_row;
+        s_terrain_map_initialized = true;
     }
 
-    s_surface_row_cache_valid = 1u;
+    int16_t delta = cyclic_world_tile_delta(s_terrain_loaded_left_tile, camera_left_tile);
+
+    while (delta > 0) {
+        uint16_t new_right_tile = (uint16_t)((s_terrain_loaded_left_tile + RPS_TILEMAP_WIDTH_TILES) % TERRAIN_WORLD_WIDTH_TILES);
+        load_world_tile_column(s_terrain_loaded_left_map_col, new_right_tile);
+        s_terrain_loaded_left_tile = (uint16_t)((s_terrain_loaded_left_tile + 1u) % TERRAIN_WORLD_WIDTH_TILES);
+        s_terrain_loaded_left_map_col = (uint8_t)((s_terrain_loaded_left_map_col + 1u) % RPS_TILEMAP_WIDTH_TILES);
+        delta--;
+    }
+
+    while (delta < 0) {
+        uint16_t new_left_tile = (uint16_t)((s_terrain_loaded_left_tile + TERRAIN_WORLD_WIDTH_TILES - 1u) % TERRAIN_WORLD_WIDTH_TILES);
+        uint8_t new_left_map_col = (uint8_t)((s_terrain_loaded_left_map_col + RPS_TILEMAP_WIDTH_TILES - 1u) % RPS_TILEMAP_WIDTH_TILES);
+        load_world_tile_column(new_left_map_col, new_left_tile);
+        s_terrain_loaded_left_tile = new_left_tile;
+        s_terrain_loaded_left_map_col = new_left_map_col;
+        delta++;
+    }
+
+    xram0_struct_set(
+        RPS_XRAM_MODE2_CONFIG_ADDR,
+        vga_mode2_config_t,
+        x_pos_px,
+        (int16_t)(-((int16_t)s_terrain_loaded_left_map_col * (int16_t)RPS_TILE_SIZE_PX + camera_x_subtile_px))
+    );
 }
 
 bool platform_video_init(void)
 {
     // Mode-2 tile layer, 8x8 tiles, palette-indexed pixels.
-    xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, x_wrap, false);
+    xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, x_wrap, true);
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, y_wrap, false);
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, x_pos_px, 0);
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, y_pos_px, 0);
@@ -285,21 +345,17 @@ bool platform_video_init(void)
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, height_tiles, RPS_TILEMAP_HEIGHT_TILES);
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, xram_data_ptr, RPS_XRAM_MODE2_TILEMAP_ADDR);
     xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, xram_palette_ptr, RPS_XRAM_MODE2_PALETTE_ADDR);
-    xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, xram_tile_ptr, RPS_XRAM_MODE2_TILESET_ADDR);
+    xram0_struct_set(RPS_XRAM_MODE2_CONFIG_ADDR, vga_mode2_config_t, xram_tile_ptr, RPS_XRAM_TERRAIN_TILESET_ADDR);
 
     if (xreg_vga_mode(2, 0x02, RPS_XRAM_MODE2_CONFIG_ADDR, 0, 0, 0) < 0) {
         return false;
     }
 
     write_palette_entry(0, 0x0000);
-    write_palette_entry(1, 0x7E1F);
-    write_palette_entry(2, 0x0154);
-
-    write_solid_4bpp_tile(TILE_INDEX_SKY, 1);
-    write_solid_4bpp_tile(TILE_INDEX_GROUND, 2);
-
-    memset(s_surface_row_cache, 0xFF, sizeof(s_surface_row_cache));
-    s_surface_row_cache_valid = 0u;
+    // Use documented RGB packing + alpha bit to avoid tint artifacts.
+    write_palette_entry(1, COLOR_FROM_RGB8(120, 190, 255) | COLOR_ALPHA_MASK);
+    write_palette_entry(2, COLOR_FROM_RGB8(96, 176, 92) | COLOR_ALPHA_MASK);
+    s_terrain_map_initialized = false;
 
     if (!init_player_sprite_layer()) {
         return false;
