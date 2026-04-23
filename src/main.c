@@ -1,6 +1,7 @@
 #include <rp6502.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "ambient_flocks.h"
 #include "constants.h"
 #include "ground_targets.h"
 #include "input.h"
@@ -20,8 +21,9 @@ static bool init_graphics(void)
     sprite_mode5_init();
     tile_mode2_init();
     sprite_mode5_init_targets();
-    // sprite_mode5_init_projectiles();
+    sprite_mode5_init_projectiles();
     ground_targets_init();
+    ambient_flocks_init();
 
     return true;
 }
@@ -47,6 +49,7 @@ int main(void)
 
         input_flight_update();
         ground_targets_update(flight_world_x());
+        ambient_flocks_update(flight_world_x());
 
     }
 
