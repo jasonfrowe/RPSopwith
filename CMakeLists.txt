@@ -16,6 +16,7 @@ project(MY-RP6502-PROJECT C CXX ASM)
 option(SOPWITH_ENABLE_TERRAIN "Enable terrain simulation scaffolding" ON)
 option(SOPWITH_ENABLE_FLIGHT "Enable flight simulation scaffolding" ON)
 option(SOPWITH_ENABLE_COLLISIONS "Enable collision scaffolding" OFF)
+option(SOPWITH_ENABLE_XRAM_DEBUG "Enable boot-time XRAM diagnostics" OFF)
 
 add_executable(RPSopwith)
 
@@ -70,6 +71,7 @@ target_compile_definitions(RPSopwith PRIVATE
     SOPWITH_FEATURE_TERRAIN=$<BOOL:${SOPWITH_ENABLE_TERRAIN}>
     SOPWITH_FEATURE_FLIGHT=$<BOOL:${SOPWITH_ENABLE_FLIGHT}>
     SOPWITH_FEATURE_COLLISIONS=$<BOOL:${SOPWITH_ENABLE_COLLISIONS}>
+    SOPWITH_DEBUG_XRAM=$<BOOL:${SOPWITH_ENABLE_XRAM_DEBUG}>
 )
 target_sources(RPSopwith PRIVATE
     src/main.c

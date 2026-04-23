@@ -3,6 +3,9 @@
 #include <rp6502.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef SOPWITH_DEBUG_XRAM
+#include <stdio.h>
+#endif
 
 #include "constants.h"
 
@@ -278,6 +281,23 @@ static void update_player_sprite_position(const game_state_t *state)
     xram0_struct_set(RPS_XRAM_MODE5_CONFIG_ADDR, vga_mode5_sprite_t, y_pos_px, sprite_y);
 }
 
+#ifdef SOPWITH_DEBUG_XRAM
+static void log_xram_layout(void)
+{
+    printf("[XRAM] Mode2 cfg  0x%04X..0x%04X\n", RPS_XRAM_MODE2_CONFIG_ADDR, RPS_XRAM_MODE2_TILEMAP_ADDR - 1u);
+    printf("[XRAM] Mode2 map  0x%04X..0x%04X\n", RPS_XRAM_MODE2_TILEMAP_ADDR, RPS_XRAM_MODE2_TILESET_ADDR - 1u);
+    printf("[XRAM] Mode2 tile 0x%04X..0x%04X\n", RPS_XRAM_MODE2_TILESET_ADDR, RPS_XRAM_MODE2_PALETTE_ADDR - 1u);
+    printf("[XRAM] Mode2 pal  0x%04X..0x%04X\n", RPS_XRAM_MODE2_PALETTE_ADDR, RPS_XRAM_MODE2_END - 1u);
+    printf("[XRAM] Mode5 cfg  0x%04X..0x%04X\n", RPS_XRAM_MODE5_CONFIG_ADDR, RPS_XRAM_MODE5_SPRITE_DATA_ADDR - 1u);
+    printf("[XRAM] Mode5 data 0x%04X..0x%04X\n", RPS_XRAM_MODE5_SPRITE_DATA_ADDR, RPS_XRAM_MODE5_PALETTE_ADDR - 1u);
+    printf("[XRAM] Mode5 pal  0x%04X..0x%04X\n", RPS_XRAM_MODE5_PALETTE_ADDR, RPS_XRAM_VIDEO_END - 1u);
+    printf("[XRAM] Input gp   0x%04X..0x%04X\n", RPS_GAMEPAD_INPUT_ADDR, (unsigned)(RPS_GAMEPAD_INPUT_ADDR + RPS_GAMEPAD_INPUT_BYTES - 1u));
+    printf("[XRAM] Input kb   0x%04X..0x%04X\n", RPS_KEYBOARD_INPUT_ADDR, (unsigned)(RPS_KEYBOARD_INPUT_ADDR + RPS_KEYBOARD_INPUT_BYTES - 1u));
+    printf("[ROM ] Terrain    0x%05X..0x%05X\n", (unsigned)RPS_XRAM_TERRAIN_TILESET_ADDR, (unsigned)(RPS_XRAM_TERRAIN_TILESET_ADDR + RPS_XRAM_TERRAIN_TILESET_BYTES - 1u));
+    printf("[ROM ] World map  0x%05X..0x%05X\n", (unsigned)RPS_XRAM_WORLD_TILEMAP_ADDR, (unsigned)(RPS_XRAM_WORLD_TILEMAP_ADDR + RPS_XRAM_WORLD_TILEMAP_BYTES - 1u));
+}
+#endif
+
 static void load_world_tile_column(uint8_t map_col, uint16_t world_tile_x)
 {
     for (uint8_t row = 0; row < RPS_TILEMAP_HEIGHT_TILES; ++row) {
@@ -360,6 +380,10 @@ bool platform_video_init(void)
     if (!init_player_sprite_layer()) {
         return false;
     }
+
+#ifdef SOPWITH_DEBUG_XRAM
+    log_xram_layout();
+#endif
 
     return true;
 }
