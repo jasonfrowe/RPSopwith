@@ -46,6 +46,70 @@ def _extract_text_array(src: str, array_name: str) -> list[str]:
     return re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', block)
 
 
+def _extract_array_block(src: str, array_name: str) -> str:
+    start = src.find(f"static const char *{array_name}[] = {{")
+    if start < 0:
+        raise ValueError(f"{array_name} array not found")
+
+    end = src.find("};", start)
+    if end < 0:
+        raise ValueError(f"{array_name} array end not found")
+
+    return src[start:end]
+
+
+def _decode_c_string_literal(token: str) -> str:
+    return bytes(token, "utf-8").decode("unicode_escape")
+
+
+def _extract_named_text_constant(src: str, name: str) -> list[str]:
+    pattern = re.compile(
+        rf"static const char\s+{re.escape(name)}\[\]\s*=\s*(.*?);",
+        re.DOTALL,
+    )
+    match = pattern.search(src)
+    if match is None:
+        raise ValueError(f"text constant {name} not found")
+
+    literals = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', match.group(1))
+    if not literals:
+        raise ValueError(f"text constant {name} has no string literals")
+
+    merged = "".join(_decode_c_string_literal(lit) for lit in literals)
+    lines = merged.splitlines()
+    if len(lines) < SIZE:
+        lines.extend([""] * (SIZE - len(lines)))
+    return lines[:SIZE]
+
+
+def _extract_symbol_lines_from_array(src: str, array_name: str) -> list[list[str]]:
+    block = _extract_array_block(src, array_name)
+
+    entries = []
+    # Keep only comma-terminated non-comment entries.
+    for raw_line in block.splitlines()[1:]:
+        line = raw_line.split("//", 1)[0].strip()
+        if not line:
+            continue
+        entries.append(line)
+
+    symbols: list[list[str]] = []
+    for entry in entries:
+        if not entry.endswith(","):
+            continue
+        token = entry[:-1].strip()
+        if not token:
+            continue
+
+        if token.startswith('"'):
+            # Inline entries are already handled by the literal scanner in _array_to_symbols.
+            continue
+
+        symbols.append(_extract_named_text_constant(src, token))
+
+    return symbols
+
+
 def _array_to_symbols(src: str, array_name: str) -> list[list[str]]:
     literals = _extract_text_array(src, array_name)
     symbols: list[list[str]] = []
@@ -73,6 +137,8 @@ def parse_swsymbol_targets(path: pathlib.Path) -> dict:
 
     standing_targets = _array_to_symbols(src, "swtrgsym")
     hit_targets = _array_to_symbols(src, "swhtrsym")
+    if not hit_targets:
+        hit_targets = _extract_symbol_lines_from_array(src, "swhtrsym")
     ox_symbols = _array_to_symbols(src, "swoxsym")
     powerup_symbols = _array_to_symbols(src, "swpowerupsym")
     balloon_symbols = _array_to_symbols(src, "swballoonsym")

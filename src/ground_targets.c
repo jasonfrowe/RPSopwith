@@ -26,6 +26,10 @@ typedef struct ground_target_s {
 #define OX_FRAME_STANDING ((uint8_t)16u)
 #define OX_FRAME_DESTROYED ((uint8_t)17u)
 
+enum {
+    TARGET_VERTICAL_BIAS_PX = -1
+};
+
 static const ground_target_t s_targets[] = {
     // Left side of map
     {191,  FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
@@ -98,7 +102,7 @@ void ground_targets_update(uint16_t camera_world_x)
         int16_t dx = world_delta_to_screen_x(t->world_x, camera_world_x);
         int16_t screen_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
         int16_t world_y = tile_mode2_ground_y_at_world_x(t->world_x);
-        int16_t screen_y = (int16_t)(world_y - (TARGETS_SPRITE_SIZE_PX / 2) + t->y_offset_px);
+        int16_t screen_y = (int16_t)(world_y - (TARGETS_SPRITE_SIZE_PX / 2) + t->y_offset_px + TARGET_VERTICAL_BIAS_PX);
         bool visible = (screen_x > -TARGETS_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
         sprite_mode5_set_target(i, screen_x, screen_y, t->frame_standing, visible);
