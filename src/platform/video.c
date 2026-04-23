@@ -291,6 +291,7 @@ static void log_xram_layout(void)
     printf("[XRAM] Mode5 cfg  0x%04X..0x%04X\n", RPS_XRAM_MODE5_CONFIG_ADDR, RPS_XRAM_MODE5_SPRITE_DATA_ADDR - 1u);
     printf("[XRAM] Mode5 data 0x%04X..0x%04X\n", RPS_XRAM_MODE5_SPRITE_DATA_ADDR, RPS_XRAM_MODE5_PALETTE_ADDR - 1u);
     printf("[XRAM] Mode5 pal  0x%04X..0x%04X\n", RPS_XRAM_MODE5_PALETTE_ADDR, RPS_XRAM_VIDEO_END - 1u);
+    printf("[XRAM] OPL2 page  0x%04X..0x%04X\n", OPL_XRAM_ADDR, (unsigned)(OPL_XRAM_ADDR + OPL_SIZE - 1u));
     printf("[XRAM] Input gp   0x%04X..0x%04X\n", RPS_GAMEPAD_INPUT_ADDR, (unsigned)(RPS_GAMEPAD_INPUT_ADDR + RPS_GAMEPAD_INPUT_BYTES - 1u));
     printf("[XRAM] Input kb   0x%04X..0x%04X\n", RPS_KEYBOARD_INPUT_ADDR, (unsigned)(RPS_KEYBOARD_INPUT_ADDR + RPS_KEYBOARD_INPUT_BYTES - 1u));
     printf("[ROM ] Terrain    0x%05X..0x%05X\n", (unsigned)RPS_XRAM_TERRAIN_TILESET_ADDR, (unsigned)(RPS_XRAM_TERRAIN_TILESET_ADDR + RPS_XRAM_TERRAIN_TILESET_BYTES - 1u));

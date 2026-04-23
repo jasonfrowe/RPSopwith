@@ -14,6 +14,7 @@ All addresses are from `src/constants.h` and `CMakeLists.txt`.
 | Mode-5 config | 0x2A20 | 0x2A9F | video.c | boot + frame | Sprite slot config array |
 | Mode-5 sprite data | 0x2B00 | 0x3AFF | video.c | boot | Generated player frames |
 | Mode-5 palette | 0x3B00 | 0x3B1F | video.c | boot + frame | Player palette + prop animation |
+| OPL2 register page | 0xFE00 | 0xFEFF | RIA OPL2 | runtime audio | Reserved for OPL2 register interface |
 
 ## Firmware-Owned XRAM Buffers (Do Not Write)
 
@@ -37,6 +38,7 @@ All addresses are from `src/constants.h` and `CMakeLists.txt`.
 2. `src/platform/input.c` only reads firmware input buffers.
 3. Any new sprite/effect region must be allocated in `src/constants.h` and covered by compile-time overlap checks.
 4. Any new ROM asset address must be listed here and reviewed for overlap with existing assets.
+5. `0xFE00..0xFEFF` is reserved for OPL2 and must not be used for general-purpose runtime buffers.
 
 ## Debug Support
 
