@@ -20,6 +20,9 @@ typedef struct game_state_s {
     bool airborne;
     bool plane_orient;
     bool stalled_high;
+    bool landing;
+    bool prev_flip_held;
+    bool prev_land_held;
     uint8_t stall_tick;
     uint8_t terrain_edit_cooldown;
     bool crashed;
