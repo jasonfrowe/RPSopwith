@@ -5,7 +5,10 @@ import re
 
 from PIL import Image, ImageDraw
 
-FRAME_COUNT = 32
+BASE_FRAME_COUNT = 32
+HIT_FRAME_COUNT = 8
+WIN_FRAME_COUNT = 8
+FRAME_COUNT = BASE_FRAME_COUNT + HIT_FRAME_COUNT + WIN_FRAME_COUNT
 SIZE = 16
 
 SOPWITH_SYMBOL_PATH = Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.c")
@@ -13,21 +16,21 @@ SOPWITH_SYMBOL_PATH = Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.
 COLOR_CHARS = " *-#"
 
 
-def parse_swplnsym_text(path: Path) -> list[list[str]]:
+def parse_symbol_array(path: Path, array_name: str) -> list[list[str]]:
     src = path.read_text(encoding="utf-8")
-    start = src.find("static const char *swplnsym[] = {")
+    start = src.find(f"static const char *{array_name}[] = {{")
     if start < 0:
-        raise RuntimeError("swplnsym block not found")
+        raise RuntimeError(f"{array_name} block not found")
 
     end = src.find("};", start)
     if end < 0:
-        raise RuntimeError("swplnsym block end not found")
+        raise RuntimeError(f"{array_name} block end not found")
 
     block = src[start:end]
     literals = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', block)
 
     if len(literals) % SIZE != 0:
-        raise RuntimeError("Unexpected swplnsym literal count")
+        raise RuntimeError(f"Unexpected {array_name} literal count")
 
     symbols: list[list[str]] = []
     for i in range(0, len(literals), SIZE):
@@ -122,11 +125,11 @@ def transform_symbol(symbol: list[list[int]], rotations: int, mirror: bool) -> l
     return out
 
 
-def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[int]]]) -> None:
+def draw_base_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[int]]]) -> None:
     ox = frame_index * SIZE
     draw = ImageDraw.Draw(img)
 
-    # 0..15: normal orientation, 16..31: vertically mirrored orientation.
+    # 0..15: normal orientation, 16..31: mirrored orientation.
     mirrored = frame_index >= 16
     angle = frame_index & 0x0F
     symbol_index = angle & 0x03
@@ -150,15 +153,33 @@ def draw_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[
     draw.line([(ox + prop_x, y0), (ox + prop_x, y1)], fill=prop_color)
 
 
+def draw_mirrored_pair_frames(
+    img: Image.Image,
+    frame_base: int,
+    symbols: list[list[list[int]]],
+) -> None:
+    for i in range(4):
+        if i >= len(symbols):
+            break
+        a = transform_symbol(symbols[i], 0, False)
+        b = transform_symbol(symbols[i], 0, True)
+        blit_pixels(img, (frame_base + i) * SIZE, a)
+        blit_pixels(img, (frame_base + 4 + i) * SIZE, b)
+
+
 def main() -> None:
     if not SOPWITH_SYMBOL_PATH.exists():
         raise RuntimeError(f"Sopwith symbols not found at {SOPWITH_SYMBOL_PATH}")
 
-    symbols_text = parse_swplnsym_text(SOPWITH_SYMBOL_PATH)
+    symbols_text = parse_symbol_array(SOPWITH_SYMBOL_PATH, "swplnsym")
     if len(symbols_text) < 4:
         raise RuntimeError("Expected at least 4 plane symbol definitions")
+    hit_text = parse_symbol_array(SOPWITH_SYMBOL_PATH, "swhitsym")
+    win_text = parse_symbol_array(SOPWITH_SYMBOL_PATH, "swwinsym")
 
     base_symbols = [symbol_to_pixels(s) for s in symbols_text[:4]]
+    hit_symbols = [symbol_to_pixels(s) for s in hit_text[:4]]
+    win_symbols = [symbol_to_pixels(s) for s in win_text[:4]]
 
     img = Image.new("P", (SIZE * FRAME_COUNT, SIZE), 0)
 
@@ -178,10 +199,14 @@ def main() -> None:
         palette[idx * 3 + 2] = b
     img.putpalette(palette)
 
-    for i in range(FRAME_COUNT):
-        draw_frame(img, i, base_symbols)
+    for i in range(BASE_FRAME_COUNT):
+        draw_base_frame(img, i, base_symbols)
+
+    draw_mirrored_pair_frames(img, BASE_FRAME_COUNT, hit_symbols)
+    draw_mirrored_pair_frames(img, BASE_FRAME_COUNT + HIT_FRAME_COUNT, win_symbols)
 
     img.save("Sprites/player_bank_strip.png")
+    print(f"Generated player strip: {FRAME_COUNT} frames ({SIZE * FRAME_COUNT}x{SIZE})")
 
 
 if __name__ == "__main__":

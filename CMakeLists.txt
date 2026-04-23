@@ -11,9 +11,10 @@ add_executable(RPSopwith)
 
 # XRAM Assets
 rp6502_asset(RPSopwith 0x10000 images/player_bank_strip_4bpp.bin)
-rp6502_asset(RPSopwith 0x11000 images/terrain_world_tilemap.bin)
-rp6502_asset(RPSopwith 0x13BF2 images/terrain_tileset_4bpp.bin)
-rp6502_asset(RPSopwith 0x15BF2 images/targets_strip_4bpp.bin)
+rp6502_asset(RPSopwith 0x11800 images/terrain_world_tilemap.bin)
+rp6502_asset(RPSopwith 0x143F2 images/terrain_tileset_4bpp.bin)
+rp6502_asset(RPSopwith 0x163F2 images/targets_strip_4bpp.bin)
+rp6502_asset(RPSopwith 0x172F2 images/projectiles_strip_4bpp.bin)
 
 rp6502_executable(RPSopwith 
     DATA file 

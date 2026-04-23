@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate RP6502 Mode-5 target sprites from SDL Sopwith source.
+Generate RP6502 Mode-5 ground/target sprites from SDL Sopwith source.
 
-Extracts target sprites from swsymbol.c and emits a horizontal PNG strip
-(one 16x16 frame per target state, standing then destroyed, left to right).
-Feed the output PNG to convert_sprite.py to produce the 4bpp .bin + palette.
+Emits one 16x16 horizontal PNG strip containing:
+1) target standing+destroyed pairs (first N TARGET_* types)
+2) ox standing+dead
+3) powerups
+4) balloons
+
+Feed output PNG to convert_sprite.py to produce 4bpp .bin + palette.
 """
 
 import argparse
@@ -29,85 +33,56 @@ TARGET_COLORS = {
 }
 
 
-def parse_swsymbol_targets(path: pathlib.Path) -> dict:
-    """
-    Extract target sprites from swsymbol.c.
-    Returns dict with keys 'standing' and 'destroyed', each containing array of target sprites.
-    """
-    src = path.read_text(encoding="utf-8")
-    
-    # Parse swtrgsym array (standing targets)
-    start = src.find("static const char *swtrgsym[] = {")
+def _extract_text_array(src: str, array_name: str) -> list[str]:
+    start = src.find(f"static const char *{array_name}[] = {{")
     if start < 0:
-        raise ValueError("swtrgsym array not found")
-    
+        raise ValueError(f"{array_name} array not found")
+
     end = src.find("};", start)
     if end < 0:
-        raise ValueError("swtrgsym array end not found")
-    
-    swtrgsym_block = src[start:end]
-    
-    # Find all string literals in swtrgsym
-    literals = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', swtrgsym_block)
-    
-    # Group into 16-line sprites (skip non-string entries like custom_target_sym)
-    standing = []
+        raise ValueError(f"{array_name} array end not found")
+
+    block = src[start:end]
+    return re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', block)
+
+
+def _array_to_symbols(src: str, array_name: str) -> list[list[str]]:
+    literals = _extract_text_array(src, array_name)
+    symbols: list[list[str]] = []
     i = 0
     while i < len(literals):
-        # Try to collect 16 lines for a sprite
-        sprite_lines = []
-        for j in range(16):
-            if i + j < len(literals):
-                line = bytes(literals[i + j], "utf-8").decode("unicode_escape")
-                line = line.rstrip("\n")
-                sprite_lines.append(line)
-            else:
+        lines: list[str] = []
+        for j in range(SIZE):
+            if i + j >= len(literals):
                 break
-        
-        # If we got 16 lines and they look like a sprite, keep them
-        if len(sprite_lines) == 16 and all(len(line) > 20 for line in sprite_lines):
-            standing.append(sprite_lines)
-            i += 16
+            line = bytes(literals[i + j], "utf-8").decode("unicode_escape")
+            lines.append(line.rstrip("\n"))
+
+        # A symbol line is 2 chars per pixel, so 16px symbols are usually 32 chars.
+        if len(lines) == SIZE and all(len(line) >= (SIZE * 2 - 2) for line in lines):
+            symbols.append(lines)
+            i += SIZE
         else:
-            # Skip single-line entries (like custom_target_sym references)
             i += 1
-    
-    # Parse destroyed_* strings for hit variants
-    destroyed = {}
-    
-    destroyed_names = ["building", "truck", "flag", "tent"]
-    
-    for name in destroyed_names:
-        pattern = rf"static const char destroyed_{name}\[\]\s*=(.*?);"
-        match = re.search(pattern, src, re.DOTALL)
-        if match:
-            block = match.group(1)
-            # Extract all string literals from this block
-            literals = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', block)
-            lines = []
-            for lit in literals:
-                line = bytes(lit, "utf-8").decode("unicode_escape")
-                line = line.rstrip("\n")
-                if line:  # Skip empty lines from comments
-                    lines.append(line)
-            if lines:
-                destroyed[name] = lines
-    
-    # Map destroyed variants to targets
-    hit_variants = [
-        destroyed.get("building", []),       # TARGET_HANGAR
-        destroyed.get("building", []),       # TARGET_FACTORY
-        destroyed.get("building", []),       # TARGET_OIL_TANK
-        destroyed.get("building", []),       # TARGET_TANK
-        destroyed.get("truck", []),          # TARGET_TRUCK
-        destroyed.get("truck", []),          # TARGET_TANKER_TRUCK
-        destroyed.get("flag", []),           # TARGET_FLAG
-        destroyed.get("tent", []),           # TARGET_TENT
-    ]
-    
+
+    return symbols
+
+
+def parse_swsymbol_targets(path: pathlib.Path) -> dict:
+    src = path.read_text(encoding="utf-8")
+
+    standing_targets = _array_to_symbols(src, "swtrgsym")
+    hit_targets = _array_to_symbols(src, "swhtrsym")
+    ox_symbols = _array_to_symbols(src, "swoxsym")
+    powerup_symbols = _array_to_symbols(src, "swpowerupsym")
+    balloon_symbols = _array_to_symbols(src, "swballoonsym")
+
     return {
-        "standing": standing[:8],  # Only first 8 main types
-        "hit": hit_variants,
+        "target_standing": standing_targets,
+        "target_hit": hit_targets,
+        "ox": ox_symbols,
+        "powerups": powerup_symbols,
+        "balloons": balloon_symbols,
     }
 
 
@@ -187,15 +162,22 @@ def main() -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    standing_sprites = targets_data.get("standing", [])
-    hit_sprites = targets_data.get("hit", [])
+    standing_sprites = targets_data.get("target_standing", [])
+    hit_sprites = targets_data.get("target_hit", [])
+    ox_sprites = targets_data.get("ox", [])
+    powerup_sprites = targets_data.get("powerups", [])
+    balloon_sprites = targets_data.get("balloons", [])
 
     if not standing_sprites:
         print("error: no standing target sprites found", file=sys.stderr)
         return 1
 
-    # Build frame list: standing then destroyed, interleaved per target.
-    # Layout: [target0_stand, target0_hit, target1_stand, target1_hit, ...]
+    # Build frame list in deterministic order.
+    # Layout:
+    # [target0_stand, target0_hit, ..., targetN_stand, targetN_hit,
+    #  ox_stand, ox_dead,
+    #  powerup0..powerupN,
+    #  balloon0..balloonN]
     num_generated = min(args.num_targets, len(standing_sprites))
     frames: list[list[list[int]]] = []
     for i in range(num_generated):
@@ -204,12 +186,26 @@ def main() -> int:
         frames.append(standing_pixels)
         frames.append(hit_pixels)
 
+    if len(ox_sprites) >= 2:
+        frames.append(ascii_to_pixels(ox_sprites[0]))
+        frames.append(ascii_to_pixels(ox_sprites[1]))
+
+    for sym in powerup_sprites:
+        frames.append(ascii_to_pixels(sym))
+
+    for sym in balloon_sprites:
+        frames.append(ascii_to_pixels(sym))
+
     img = make_strip(frames)
     args.out_png.parent.mkdir(parents=True, exist_ok=True)
     img.save(args.out_png)
 
     total_frames = len(frames)
-    print(f"Generated {num_generated} target types × 2 states = {total_frames} frames")
+    print(f"Generated frames: {total_frames}")
+    print(f"- Targets (standing+destroyed): {num_generated * 2}")
+    print(f"- Ox: {2 if len(ox_sprites) >= 2 else 0}")
+    print(f"- Powerups: {len(powerup_sprites)}")
+    print(f"- Balloons: {len(balloon_sprites)}")
     print(f"Strip size: {img.width}×{img.height} → {args.out_png}")
     print(f"Next: python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette {args.out_png}")
     return 0
