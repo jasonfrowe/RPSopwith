@@ -1,166 +1,44 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-// -----------------------------------------------------------------------------
-// Display and terrain dimensions
-// -----------------------------------------------------------------------------
+// Screen dimensions
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
 
-#define RPS_SCREEN_WIDTH_PX 320u
-#define RPS_SCREEN_HEIGHT_PX 240u
-#define RPS_TILE_SIZE_PX 8u
+// Sprite data configuration
+#define SPRITE_DATA_START       0x0000U            // Starting address in XRAM for sprite data
 
-#define RPS_SOURCE_SCREEN_HEIGHT_PX 200u
-#define RPS_TERRAIN_SCREEN_Y_OFFSET_PX 0u
+#define PLAYER_DATA            (SPRITE_DATA_START) // Address for main tile bitmap data
+#define PLAYER_DATA_SIZE        0x1000U            // 4096 bytes (32 frames 16x16 at 4bpp)
+#define PLAYER_SPRITE_SIZE_PX   16                 // Player sprite is 16x16 pixels
+#define PLAYER_FRAME_SIZE       0x0080U            // 128 bytes per 16x16 4bpp frame
+#define PLAYER_FRAME_COUNT      32                 // 32 frames (Rotation and flipping)
 
-#define RPS_TILEMAP_WIDTH_TILES 64u
-#define RPS_TILEMAP_HEIGHT_TILES (RPS_SCREEN_HEIGHT_PX / RPS_TILE_SIZE_PX)
+#define GROUND_DATA            (PLAYER_DATA + PLAYER_DATA_SIZE) // Address for terrain tile graphics
+#define GROUND_DATA_SIZE        0x2BF2U            // 11250 bytes (375 x 30)
+#define GROUND_WIDTH            375                // Width of terrain tileset in pixels
+#define GROUND_HEIGHT           30                 // Height of terrain tileset in pixels
 
-#define TERRAIN_WORLD_WIDTH 3000u
-#define TERRAIN_WORLD_WIDTH_TILES (TERRAIN_WORLD_WIDTH / RPS_TILE_SIZE_PX)
-#define TERRAIN_WORLD_HEIGHT_TILES RPS_TILEMAP_HEIGHT_TILES
+#define GROUND_TILES           (GROUND_DATA + GROUND_DATA_SIZE) // Address for terrain tilemap (tile ID grid)
+#define GROUND_TILES_SIZE       0x2000U            // 8192 bytes (256 x 32 tile indices for 8x8 tiles)
 
-#define RPS_PLAYER1_START_WORLD_X 1270u
-#define RPS_PLAYER_RUNWAY_SPAN_PX 20u
-#define RPS_PLANE_GROUND_CONTACT_FROM_TOP_PX 13u
+#define SPRITE_DATA_END        (GROUND_TILES + GROUND_TILES_SIZE)
 
-// -----------------------------------------------------------------------------
-// Flight model (Sopwith-inspired 10 Hz tuning)
-// -----------------------------------------------------------------------------
+// Palette configurations
+#define PLAYER_PALETTE_ADDR      0xFC00  // 16-color palette (32 bytes, 0xFC00-0xFC1F)
+#define PLAYER_PALETTE_SIZE      0x0020
+#define TILE_GROUND_PALETTE_ADDR 0xFC20  // 16-color palette for terrain tiles (32 bytes, 0xFC20-0xFC3F)
+#define TILE_GROUND_PALETTE_SIZE 0x0020
 
-#define RPS_FPS 10u
-#define RPS_MIN_SPEED 4
-#define RPS_MAX_SPEED 8
-#define RPS_MAX_THROTTLE 4
+// OPL2 sound chip configuration
+#define OPL_XRAM_ADDR   0xFE00  // Native RIA OPL2 register page
+#define OPL_SIZE        0x0100
 
-#define RPS_FLAP_PITCH_MIN (-4)
-#define RPS_FLAP_PITCH_MAX 4
+// RIA input buffers are provided at fixed XRAM addresses.
+#define GAMEPAD_INPUT   0xFF78  // 40 bytes for 4 gamepads
+#define KEYBOARD_INPUT  0xFFA0  // 32 bytes keyboard bitfield
 
-#define RPS_TAKEOFF_SPEED 6
-#define RPS_TAKEOFF_LIFT_VY (-3)
-#define RPS_GRAVITY_PER_TICK 1
+// Configs 
+extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
 
-// -----------------------------------------------------------------------------
-// XRAM layout (Phase 0/1): packed Mode-2 terrain resources
-// -----------------------------------------------------------------------------
-// Keeping this centralized mirrors the RPDemo style and makes growth visible.
-
-#define RPS_XRAM_MODE2_CONFIG_ADDR 0x0200u
-#define RPS_XRAM_MODE2_CONFIG_BYTES 0x0020u
-
-#define RPS_MODE2_TILE_BYTES_4BPP 32u
-#define RPS_MODE2_TILE_COUNT 256u
-#define RPS_MODE2_TILESET_BYTES (RPS_MODE2_TILE_BYTES_4BPP * RPS_MODE2_TILE_COUNT)
-
-#define RPS_MODE2_TILEMAP_BYTES (RPS_TILEMAP_WIDTH_TILES * RPS_TILEMAP_HEIGHT_TILES)
-
-#define RPS_XRAM_MODE2_TILEMAP_ADDR (RPS_XRAM_MODE2_CONFIG_ADDR + RPS_XRAM_MODE2_CONFIG_BYTES)
-
-// Align tile bitmap bank to 256-byte boundary for easier future tooling/streaming.
-#define RPS_XRAM_MODE2_TILESET_ADDR (((RPS_XRAM_MODE2_TILEMAP_ADDR + RPS_MODE2_TILEMAP_BYTES) + 0x00FFu) & ~0x00FFu)
-#define RPS_XRAM_MODE2_PALETTE_ADDR (RPS_XRAM_MODE2_TILESET_ADDR + RPS_MODE2_TILESET_BYTES)
-#define RPS_XRAM_MODE2_PALETTE_BYTES 0x0020u
-
-#define RPS_XRAM_MODE2_END (RPS_XRAM_MODE2_PALETTE_ADDR + RPS_XRAM_MODE2_PALETTE_BYTES)
-
-// -----------------------------------------------------------------------------
-// Mode-5 placeholder sprite layout (single player sprite now, room to scale)
-// -----------------------------------------------------------------------------
-
-#define RPS_MODE5_SPRITE_SIZE_PX 16u
-#define RPS_MODE5_SPRITE_BYTES_4BPP 128u
-#define RPS_MODE5_SPRITE_CONFIG_BYTES 8u
-#define RPS_MODE5_SPRITE_CAPACITY 16u
-
-#define RPS_PLAYER_BANK_MIN (-4)
-#define RPS_PLAYER_BANK_MAX 4
-#define RPS_PLAYER_BANK_FRAME_COUNT 32u
-
-#define RPS_XRAM_MODE5_CONFIG_ADDR (((RPS_XRAM_MODE2_END + 0x000Fu) & ~0x000Fu))
-#define RPS_XRAM_MODE5_CONFIG_BYTES (RPS_MODE5_SPRITE_CONFIG_BYTES * RPS_MODE5_SPRITE_CAPACITY)
-
-#define RPS_XRAM_MODE5_SPRITE_DATA_ADDR (((RPS_XRAM_MODE5_CONFIG_ADDR + RPS_XRAM_MODE5_CONFIG_BYTES) + 0x00FFu) & ~0x00FFu)
-#define RPS_XRAM_MODE5_SPRITE_DATA_BYTES (RPS_MODE5_SPRITE_BYTES_4BPP * RPS_PLAYER_BANK_FRAME_COUNT)
-
-#define RPS_XRAM_MODE5_PALETTE_ADDR (RPS_XRAM_MODE5_SPRITE_DATA_ADDR + RPS_XRAM_MODE5_SPRITE_DATA_BYTES)
-#define RPS_XRAM_MODE5_PALETTE_BYTES 0x0020u
-
-#define RPS_XRAM_VIDEO_END (RPS_XRAM_MODE5_PALETTE_ADDR + RPS_XRAM_MODE5_PALETTE_BYTES)
-
-// Pre-rendered terrain assets (generated by tools/generate_terrain_mode2_assets.py)
-#define RPS_XRAM_TERRAIN_TILESET_ADDR 0x10A00u
-#define RPS_XRAM_TERRAIN_TILESET_BYTES RPS_MODE2_TILESET_BYTES
-#define RPS_XRAM_WORLD_TILEMAP_ADDR 0x13C00u
-#define RPS_XRAM_WORLD_TILEMAP_BYTES (TERRAIN_WORLD_WIDTH_TILES * TERRAIN_WORLD_HEIGHT_TILES)
-
-// -----------------------------------------------------------------------------
-// RIA fixed input buffers (provided by firmware in high XRAM)
-// -----------------------------------------------------------------------------
-
-// OPL2 sound chip register page (native RIA mapping).
-#define OPL_XRAM_ADDR 0xFE00u
-#define OPL_SIZE 0x0100u
-
-#define RPS_GAMEPAD_INPUT_ADDR 0xFF78u
-#define RPS_KEYBOARD_INPUT_ADDR 0xFFA0u
-
-// -----------------------------------------------------------------------------
-// Compile-time XRAM safety checks
-// -----------------------------------------------------------------------------
-
-#define RPS_GAMEPAD_INPUT_BYTES 10u
-#define RPS_KEYBOARD_INPUT_BYTES 32u
-
-_Static_assert(
-	RPS_XRAM_MODE2_CONFIG_ADDR + RPS_XRAM_MODE2_CONFIG_BYTES <= RPS_XRAM_MODE2_TILEMAP_ADDR,
-	"Mode-2 config overlaps tilemap"
-);
-_Static_assert(
-	RPS_XRAM_MODE2_TILEMAP_ADDR + RPS_MODE2_TILEMAP_BYTES <= RPS_XRAM_MODE2_TILESET_ADDR,
-	"Mode-2 tilemap overlaps tileset"
-);
-_Static_assert(
-	RPS_XRAM_MODE2_TILESET_ADDR + RPS_MODE2_TILESET_BYTES <= RPS_XRAM_MODE2_PALETTE_ADDR,
-	"Mode-2 tileset overlaps palette"
-);
-_Static_assert(
-	RPS_XRAM_MODE2_PALETTE_ADDR + RPS_XRAM_MODE2_PALETTE_BYTES <= RPS_XRAM_MODE5_CONFIG_ADDR,
-	"Mode-2 palette overlaps Mode-5 config"
-);
-_Static_assert(
-	RPS_XRAM_MODE5_CONFIG_ADDR + RPS_XRAM_MODE5_CONFIG_BYTES <= RPS_XRAM_MODE5_SPRITE_DATA_ADDR,
-	"Mode-5 config overlaps sprite data"
-);
-_Static_assert(
-	RPS_XRAM_MODE5_SPRITE_DATA_ADDR + RPS_XRAM_MODE5_SPRITE_DATA_BYTES <= RPS_XRAM_MODE5_PALETTE_ADDR,
-	"Mode-5 sprite data overlaps palette"
-);
-_Static_assert(
-	RPS_XRAM_VIDEO_END <= RPS_XRAM_TERRAIN_TILESET_ADDR,
-	"Runtime video XRAM overlaps ROM asset region"
-);
-_Static_assert(
-	RPS_XRAM_VIDEO_END <= RPS_GAMEPAD_INPUT_ADDR,
-	"Runtime video XRAM overlaps firmware gamepad buffer"
-);
-_Static_assert(
-	RPS_XRAM_VIDEO_END <= OPL_XRAM_ADDR,
-	"Runtime video XRAM overlaps OPL2 register page"
-);
-_Static_assert(
-	OPL_XRAM_ADDR + OPL_SIZE <= RPS_GAMEPAD_INPUT_ADDR,
-	"OPL2 register page overlaps firmware gamepad buffer"
-);
-_Static_assert(
-	RPS_GAMEPAD_INPUT_ADDR + RPS_GAMEPAD_INPUT_BYTES <= RPS_KEYBOARD_INPUT_ADDR,
-	"Gamepad and keyboard firmware buffers overlap"
-);
-_Static_assert(
-	RPS_KEYBOARD_INPUT_ADDR + RPS_KEYBOARD_INPUT_BYTES <= 0x10000u,
-	"Keyboard firmware buffer exceeds XRAM range"
-);
-_Static_assert(
-	RPS_XRAM_WORLD_TILEMAP_ADDR + RPS_XRAM_WORLD_TILEMAP_BYTES <= 0x100000u,
-	"ROM world tilemap exceeds RP6502 ROM range"
-);
-
-#endif
+#endif // CONSTANTS_H

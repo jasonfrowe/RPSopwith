@@ -181,7 +181,7 @@ def main() -> None:
     for i in range(FRAME_COUNT):
         draw_frame(img, i, base_symbols)
 
-    img.save("assets/sprites/player_bank_strip.png")
+    img.save("Sprites/player_bank_strip.png")
 
 
 if __name__ == "__main__":

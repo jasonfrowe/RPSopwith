@@ -5,6 +5,8 @@ import pathlib
 import re
 import sys
 
+from PIL import Image
+
 
 GROUND_RE = re.compile(r"s_original_ground\[(\d+)\]\s*=\s*\{(.*?)\};", re.DOTALL)
 
@@ -51,15 +53,88 @@ def all_byte(value: int, size: int) -> bytes:
     return bytes([value] * size)
 
 
+def tile_bytes_to_indices(tile_bytes: bytes) -> list[int]:
+    indices: list[int] = []
+    for b in tile_bytes:
+        indices.append((b >> 4) & 0x0F)
+        indices.append(b & 0x0F)
+    return indices
+
+
+def write_tileset_png(path: pathlib.Path, tiles: list[bytes]) -> None:
+    # Convert-script tile mode expects image height == tile size (8px).
+    # Emit a horizontal strip: one 8x8 tile per frame.
+    tile_count = 256
+    atlas = Image.new("P", (tile_count * 8, 8), 0)
+    palette = [0] * (256 * 3)
+    # Basic debug palette: 0 black, 1 sky blue, 2 green.
+    palette[0:3] = [0, 0, 0]
+    palette[3:6] = [120, 190, 255]
+    palette[6:9] = [80, 160, 80]
+    atlas.putpalette(palette)
+
+    for i in range(tile_count):
+        tx = i * 8
+        ty = 0
+        tile = tiles[i] if i < len(tiles) else bytes([0x11] * 32)
+        idx = tile_bytes_to_indices(tile)
+        for y in range(8):
+            for x in range(8):
+                atlas.putpixel((tx + x, ty + y), idx[y * 8 + x])
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atlas.save(path)
+
+
+def write_tilemap_png(path: pathlib.Path, tilemap: bytes, width_tiles: int, height_tiles: int) -> None:
+    img = Image.new("P", (width_tiles, height_tiles), 0)
+    # Identity-ish palette for index visualization.
+    palette = [0] * (256 * 3)
+    for i in range(256):
+        palette[i * 3 + 0] = i
+        palette[i * 3 + 1] = i
+        palette[i * 3 + 2] = i
+    img.putpalette(palette)
+
+    for y in range(height_tiles):
+        row_start = y * width_tiles
+        for x in range(width_tiles):
+            img.putpixel((x, y), tilemap[row_start + x])
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate RP6502 Mode-2 terrain tileset + world tilemap assets.")
     parser.add_argument("--ground-header", required=True, type=pathlib.Path)
-    parser.add_argument("--tileset-bin", required=True, type=pathlib.Path)
-    parser.add_argument("--tilemap-bin", required=True, type=pathlib.Path)
+    parser.add_argument("--tileset-bin", type=pathlib.Path)
+    parser.add_argument(
+        "--tilemap-bin",
+        type=pathlib.Path,
+        default=pathlib.Path("images/terrain_world_tilemap.bin"),
+        help="Tilemap binary output path (default: images/terrain_world_tilemap.bin)",
+    )
+    parser.add_argument(
+        "--tileset-png",
+        type=pathlib.Path,
+        default=pathlib.Path("Sprites/terrain_tileset.png"),
+        help="Optional tileset atlas PNG output path (default: Sprites/terrain_tileset.png)",
+    )
+    parser.add_argument(
+        "--tilemap-png",
+        type=pathlib.Path,
+        default=pathlib.Path("Sprites/terrain_world_tilemap.png"),
+        help="Optional tilemap PNG output path (default: Sprites/terrain_world_tilemap.png)",
+    )
     parser.add_argument("--screen-height", required=True, type=int)
     parser.add_argument("--tile-size", required=True, type=int)
     parser.add_argument("--y-offset", type=int, default=None)
     args = parser.parse_args()
+
+    if args.tileset_bin is None and args.tilemap_bin is None and args.tileset_png is None and args.tilemap_png is None:
+        print("error: no outputs requested", file=sys.stderr)
+        return 1
 
     if args.tile_size != 8:
         print("error: only tile-size 8 is supported", file=sys.stderr)
@@ -128,13 +203,26 @@ def main() -> int:
         start = i * 32
         tileset[start:start + 32] = tile
 
-    args.tileset_bin.parent.mkdir(parents=True, exist_ok=True)
-    args.tilemap_bin.parent.mkdir(parents=True, exist_ok=True)
-    args.tileset_bin.write_bytes(tileset)
-    args.tilemap_bin.write_bytes(tilemap)
+    if args.tileset_bin is not None:
+        args.tileset_bin.parent.mkdir(parents=True, exist_ok=True)
+        args.tileset_bin.write_bytes(tileset)
+
+    if args.tilemap_bin is not None:
+        args.tilemap_bin.parent.mkdir(parents=True, exist_ok=True)
+        args.tilemap_bin.write_bytes(tilemap)
+
+    if args.tileset_png is not None:
+        write_tileset_png(args.tileset_png, tiles)
+
+    if args.tilemap_png is not None:
+        write_tilemap_png(args.tilemap_png, bytes(tilemap), world_width_tiles, world_height_tiles)
 
     print(f"Generated terrain tiles: {len(tiles)} / 256")
     print(f"World tilemap size: {world_width_tiles}x{world_height_tiles} = {len(tilemap)} bytes")
+    if args.tileset_png is not None:
+        print(f"Tileset PNG: {args.tileset_png}")
+    if args.tilemap_png is not None:
+        print(f"Tilemap PNG: {args.tilemap_png}")
     return 0
 
 

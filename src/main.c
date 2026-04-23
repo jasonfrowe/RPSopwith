@@ -1,43 +1,46 @@
 #include <rp6502.h>
-#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include "constants.h"
+#include "sprite_mode5.h"
+#include "tile_mode2.h"
 
-#include "game/game.h"
-#include "platform/frame_sync.h"
-#include "platform/input.h"
-#include "platform/video.h"
+static bool init_graphics(void)
+{
+    // 320×240 canvas
+    int rc;
+    rc = xreg_vga_canvas(1);
+    if (rc < 0) {
+        return false;
+    }
+
+    sprite_mode5_init();
+    tile_mode2_init();
+
+    return true;
+}
+
+uint8_t vsync_last = 0;
 
 int main(void)
 {
-    input_actions_t actions;
-    game_state_t game;
-    uint8_t subframe;
 
-    if (xreg_vga_canvas(1) < 0) {
-        puts("VGA init failed");
+    // Initialize input
+    xreg(0, 0, 0, KEYBOARD_INPUT);
+    xreg(0, 0, 2, GAMEPAD_INPUT);
+
+    // Initialise graphics
+    if (!init_graphics()) {
         return 1;
     }
 
-    platform_input_init();
-    frame_sync_init();
-    game_init(&game);
+    // Main loop
+    while (true) {
+        // 1. SYNC
+        if (RIA.vsync == vsync_last) continue;
+        vsync_last = RIA.vsync;
 
-    if (!platform_video_init()) {
-        puts("Mode-2 init failed");
-        return 1;
     }
 
-    puts("RPSopwith Phase 0 runtime");
-
-    while (1) {
-        frame_sync_wait_vblank();
-        subframe = frame_sync_subframe_60_to_10hz();
-
-        platform_input_poll(&actions);
-
-        if (subframe == 0) {
-            game_tick_10hz(&game, &actions);
-        }
-
-        game_render_interpolated(&game, subframe);
-    }
+    return 0;
 }
