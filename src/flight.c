@@ -536,6 +536,11 @@ uint8_t flight_plane_pitch(void)
     return (uint8_t)s_flight.plane_pitch & 0x0Fu;
 }
 
+uint8_t flight_plane_speed(void)
+{
+    return s_flight.speed;
+}
+
 bool flight_plane_orient(void)
 {
     return s_flight.plane_orient;

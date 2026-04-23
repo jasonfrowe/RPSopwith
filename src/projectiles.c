@@ -8,30 +8,34 @@
 
 typedef struct projectile_s {
     uint16_t world_x;
-    int16_t screen_y;
+    int16_t center_y;
     int8_t vx;
     int8_t vy;
     uint8_t frame_index;
-    bool bomb;
     uint8_t life_ticks;
+    uint8_t gravity_ticks;
     bool active;
+    bool bomb;
 } projectile_t;
 
 enum {
     SHOT_FRAME = 0,
-    BOMB_FRAME = 2,
-    SHOT_SPAWN_COOLDOWN_TICKS = 2,
-    BOMB_SPAWN_COOLDOWN_TICKS = 5,
-    SHOT_MAX_LIFE_TICKS = 24,
-    BOMB_MAX_LIFE_TICKS = 36,
-    BOMB_MAX_FALL_SPEED = 5,
+    BOMB_FRAME_BASE = 2,
+    SHOT_SPEED = 10,
+    SHOT_LIFE_TICKS = 10,
+    SHOT_FIRE_COOLDOWN_TICKS = 1,
+    BOMB_FIRE_COOLDOWN_TICKS = 10,
+    BOMB_GRAVITY_TICKS = 5,
+    BOMB_MAX_FALL_SPEED = 10,
     PROJECTILE_TICK_DIV = 6
 };
 
 static projectile_t s_projectiles[MAX_COMBAT_PROJECTILES];
-static uint8_t s_spawn_cooldown;
+static uint8_t s_shot_cooldown;
 static uint8_t s_bomb_spawn_cooldown;
 static uint8_t s_tick_div;
+static bool s_fire_latched;
+static bool s_bomb_latched;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -72,24 +76,54 @@ static void hide_all_combat_slots(void)
     }
 }
 
+static int8_t projectile_dx_for_speed(uint8_t angle, uint8_t speed)
+{
+    return (int8_t)((speed * s_sintab[(angle + 4u) & 0x0Fu]) / 256);
+}
+
+static int8_t projectile_dy_for_speed(uint8_t angle, uint8_t speed)
+{
+    return (int8_t)(-((speed * s_sintab[angle & 0x0Fu]) / 256));
+}
+
+static uint8_t bomb_frame_for_velocity(int8_t vx, int8_t vy)
+{
+    uint8_t direction;
+
+    if (vx == 0) {
+        if (vy < 0) {
+            direction = 6u;
+        } else if (vy > 0) {
+            direction = 2u;
+        } else {
+            direction = 0u;
+        }
+    } else if (vx > 0) {
+        if (vy < 0) {
+            direction = 7u;
+        } else if (vy > 0) {
+            direction = 1u;
+        } else {
+            direction = 0u;
+        }
+    } else {
+        if (vy < 0) {
+            direction = 5u;
+        } else if (vy > 0) {
+            direction = 3u;
+        } else {
+            direction = 4u;
+        }
+    }
+
+    return (uint8_t)(BOMB_FRAME_BASE + direction);
+}
+
 static void spawn_shot(void)
 {
     uint8_t pitch = flight_plane_pitch();
-    int16_t nose_dx = (int16_t)(s_sintab[(pitch + 4u) & 0x0Fu] / 32);
-    int16_t nose_dy = (int16_t)(-s_sintab[pitch] / 32);
-    int8_t shot_vx;
-    int8_t shot_vy;
-
-    if (nose_dx >= 0) {
-        shot_vx = (int8_t)(3 + (nose_dx / 4));
-    } else {
-        shot_vx = (int8_t)(-3 + (nose_dx / 4));
-    }
-    if (shot_vx == 0) {
-        shot_vx = 3;
-    }
-
-    shot_vy = (int8_t)(nose_dy / 4);
+    uint8_t shot_speed = (uint8_t)(flight_plane_speed() + SHOT_SPEED);
+    int16_t plane_center_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2));
 
     for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
         projectile_t *p = &s_projectiles[i];
@@ -98,13 +132,14 @@ static void spawn_shot(void)
             continue;
         }
 
-        p->world_x = wrap_world_x((int32_t)flight_world_x() + nose_dx);
-        p->screen_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2) + nose_dy);
-        p->vx = shot_vx;
-        p->vy = shot_vy;
+        p->world_x = flight_world_x();
+        p->center_y = plane_center_y;
+        p->vx = projectile_dx_for_speed(pitch, shot_speed);
+        p->vy = projectile_dy_for_speed(pitch, shot_speed);
         p->frame_index = SHOT_FRAME;
         p->bomb = false;
-        p->life_ticks = SHOT_MAX_LIFE_TICKS;
+        p->life_ticks = SHOT_LIFE_TICKS;
+        p->gravity_ticks = 0;
         p->active = true;
         break;
     }
@@ -113,8 +148,13 @@ static void spawn_shot(void)
 static void spawn_bomb(void)
 {
     uint8_t pitch = flight_plane_pitch();
-    int16_t nose_dx = (int16_t)(s_sintab[(pitch + 4u) & 0x0Fu] / 24);
-    int16_t nose_dy = (int16_t)(-s_sintab[pitch] / 24);
+    uint8_t plane_speed = flight_plane_speed();
+    uint8_t release_angle = flight_plane_orient() ?
+        (uint8_t)((pitch + 4u) & 0x0Fu) :
+        (uint8_t)((pitch + 12u) & 0x0Fu);
+    int16_t plane_center_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2));
+    int16_t release_dx = (int16_t)((10 * s_sintab[(release_angle + 4u) & 0x0Fu]) / 256);
+    int16_t release_dy = (int16_t)(-((10 * s_sintab[release_angle]) / 256));
 
     for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
         projectile_t *p = &s_projectiles[i];
@@ -123,13 +163,14 @@ static void spawn_bomb(void)
             continue;
         }
 
-        p->world_x = wrap_world_x((int32_t)flight_world_x() + nose_dx);
-        p->screen_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2) + nose_dy);
-        p->vx = (int8_t)(nose_dx / 8);
-        p->vy = 1;
-        p->frame_index = BOMB_FRAME;
+        p->world_x = wrap_world_x((int32_t)flight_world_x() + release_dx);
+        p->center_y = (int16_t)(plane_center_y + release_dy);
+        p->vx = projectile_dx_for_speed(pitch, plane_speed);
+        p->vy = projectile_dy_for_speed(pitch, plane_speed);
+        p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
         p->bomb = true;
-        p->life_ticks = BOMB_MAX_LIFE_TICKS;
+        p->life_ticks = 0;
+        p->gravity_ticks = BOMB_GRAVITY_TICKS;
         p->active = true;
         break;
     }
@@ -141,9 +182,11 @@ void projectiles_init(void)
         s_projectiles[i].active = false;
     }
 
-    s_spawn_cooldown = 0;
+    s_shot_cooldown = 0;
     s_bomb_spawn_cooldown = 0;
     s_tick_div = 0;
+    s_fire_latched = false;
+    s_bomb_latched = false;
     hide_all_combat_slots();
 }
 
@@ -157,24 +200,34 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         bomb_held = actions->bomb != 0;
     }
 
-    if (s_spawn_cooldown > 0) {
-        --s_spawn_cooldown;
+    if (fire_held) {
+        s_fire_latched = true;
     }
-    if (s_bomb_spawn_cooldown > 0) {
-        --s_bomb_spawn_cooldown;
-    }
-
-    if (fire_held && s_spawn_cooldown == 0 && !flight_is_crashed()) {
-        spawn_shot();
-        s_spawn_cooldown = SHOT_SPAWN_COOLDOWN_TICKS;
-    }
-    if (bomb_held && s_bomb_spawn_cooldown == 0 && !flight_is_crashed()) {
-        spawn_bomb();
-        s_bomb_spawn_cooldown = BOMB_SPAWN_COOLDOWN_TICKS;
+    if (bomb_held) {
+        s_bomb_latched = true;
     }
 
     if (++s_tick_div >= PROJECTILE_TICK_DIV) {
         s_tick_div = 0;
+
+        if (s_shot_cooldown > 0) {
+            --s_shot_cooldown;
+        }
+        if (s_bomb_spawn_cooldown > 0) {
+            --s_bomb_spawn_cooldown;
+        }
+
+        if (s_fire_latched && s_shot_cooldown == 0 && !flight_is_crashed()) {
+            spawn_shot();
+            s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
+        }
+        if (s_bomb_latched && s_bomb_spawn_cooldown == 0 && !flight_is_crashed()) {
+            spawn_bomb();
+            s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
+        }
+
+        s_fire_latched = false;
+        s_bomb_latched = false;
 
         for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
             projectile_t *p = &s_projectiles[i];
@@ -184,20 +237,39 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
             }
 
             p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
-            p->screen_y = (int16_t)(p->screen_y + p->vy);
-            if (p->bomb && p->vy < BOMB_MAX_FALL_SPEED) {
-                p->vy++;
-            }
             if (p->bomb) {
-                p->frame_index = (uint8_t)(BOMB_FRAME + ((p->life_ticks >> 2) & 1u));
-            }
+                p->center_y = (int16_t)(p->center_y + p->vy);
+                if (p->gravity_ticks > 0) {
+                    --p->gravity_ticks;
+                }
+                if (p->gravity_ticks == 0) {
+                    if (p->vy < 0) {
+                        if (p->vx < 0) {
+                            ++p->vx;
+                        } else if (p->vx > 0) {
+                            --p->vx;
+                        }
+                    }
+                    if (p->vy < BOMB_MAX_FALL_SPEED) {
+                        ++p->vy;
+                    }
+                    p->gravity_ticks = BOMB_GRAVITY_TICKS;
+                }
+                p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
-            if (p->life_ticks > 0) {
-                --p->life_ticks;
-            }
-
-            if (p->life_ticks == 0 || p->screen_y < -PROJECTILE_SPRITE_SIZE_PX || p->screen_y >= SCREEN_HEIGHT) {
-                p->active = false;
+                if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+                    p->active = false;
+                }
+            } else {
+                p->center_y = (int16_t)(p->center_y + p->vy);
+                if (p->life_ticks > 0) {
+                    --p->life_ticks;
+                }
+                if (p->life_ticks == 0 ||
+                    p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
+                    p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+                    p->active = false;
+                }
             }
         }
     }
@@ -213,7 +285,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         int16_t dx = world_delta_to_screen_x(p->world_x, camera_world_x);
         int16_t screen_center_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
         int16_t sprite_x = (int16_t)(screen_center_x - (PROJECTILE_SPRITE_SIZE_PX / 2));
-        int16_t sprite_y = (int16_t)(p->screen_y - (PROJECTILE_SPRITE_SIZE_PX / 2));
+        int16_t sprite_y = (int16_t)(p->center_y - (PROJECTILE_SPRITE_SIZE_PX / 2));
         bool visible = (sprite_x > -PROJECTILE_SPRITE_SIZE_PX) && (sprite_x < SCREEN_WIDTH) &&
                        (sprite_y > -PROJECTILE_SPRITE_SIZE_PX) && (sprite_y < SCREEN_HEIGHT);
 
