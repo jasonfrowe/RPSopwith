@@ -64,6 +64,7 @@ static const ground_target_t s_targets[] = {
 
 static uint8_t s_target_count;
 static int16_t s_target_ground_y[MAX_TARGETS];
+static bool s_target_destroyed[MAX_TARGETS];
 
 static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_world_x)
 {
@@ -91,6 +92,7 @@ void ground_targets_init(void)
 
     for (i = 0; i < s_target_count; ++i) {
         s_target_ground_y[i] = tile_mode2_ground_y_at_world_x(s_targets[i].world_x);
+        s_target_destroyed[i] = false;
     }
 
     for (i = 0; i < MAX_TARGETS; ++i) {
@@ -110,10 +112,42 @@ void ground_targets_update(uint16_t camera_world_x)
         int16_t screen_y = (int16_t)(world_y - TARGETS_SPRITE_SIZE_PX + 1 + t->y_offset_px + TARGET_VERTICAL_BIAS_PX);
         bool visible = (screen_x > -TARGETS_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
-        sprite_mode5_set_target(i, screen_x, screen_y, t->frame_standing, visible);
+        uint8_t frame = s_target_destroyed[i] ? t->frame_destroyed : t->frame_standing;
+        sprite_mode5_set_target(i, screen_x, screen_y, frame, visible);
     }
 
     for (; i < MAX_TARGETS; ++i) {
         sprite_mode5_set_target(i, -32, -32, 0, false);
     }
+}
+
+bool ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y)
+{
+    int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
+    int16_t half_world = (int16_t)(world_width / 2);
+
+    for (uint8_t i = 0; i < s_target_count; ++i) {
+        if (s_target_destroyed[i]) {
+            continue;
+        }
+
+        int16_t dx = (int16_t)proj_world_x - (int16_t)s_targets[i].world_x;
+        if (dx > half_world) {
+            dx -= world_width;
+        } else if (dx < -half_world) {
+            dx += world_width;
+        }
+
+        int16_t top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
+                                   s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        int16_t bot_y = (int16_t)(top_y + TARGETS_SPRITE_SIZE_PX - 1);
+
+        if (dx >= -(TARGETS_SPRITE_SIZE_PX / 2) && dx <= (TARGETS_SPRITE_SIZE_PX / 2) &&
+            proj_center_y >= top_y && proj_center_y <= bot_y) {
+            s_target_destroyed[i] = true;
+            return true;
+        }
+    }
+
+    return false;
 }
