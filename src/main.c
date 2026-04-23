@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "constants.h"
+#include "input.h"
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 
@@ -24,21 +25,22 @@ uint8_t vsync_last = 0;
 
 int main(void)
 {
-
-    // Initialize input
-    xreg(0, 0, 0, KEYBOARD_INPUT);
-    xreg(0, 0, 2, GAMEPAD_INPUT);
+    input_init();
 
     // Initialise graphics
     if (!init_graphics()) {
         return 1;
     }
 
+    input_flight_init();
+
     // Main loop
     while (true) {
         // 1. SYNC
         if (RIA.vsync == vsync_last) continue;
         vsync_last = RIA.vsync;
+
+        input_flight_update();
 
     }
 

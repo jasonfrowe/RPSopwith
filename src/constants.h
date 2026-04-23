@@ -38,6 +38,12 @@
 #define GAMEPAD_INPUT   0xFF78  // 40 bytes for 4 gamepads
 #define KEYBOARD_INPUT  0xFFA0  // 32 bytes keyboard bitfield
 
+// Gameplay positioning and movement
+#define PLAYER_START_WORLD_X_PX            1270
+#define PLAYER_GROUND_CONTACT_FROM_TOP_PX  13
+#define PLAYER_FLIGHT_SPEED_X_PX           2
+#define PLAYER_FLIGHT_SPEED_Y_PX           2
+
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
 
