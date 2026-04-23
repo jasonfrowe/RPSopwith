@@ -2,9 +2,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "constants.h"
+#include "ground_targets.h"
 #include "input.h"
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
+#include "flight.h"
 
 static bool init_graphics(void)
 {
@@ -18,6 +20,7 @@ static bool init_graphics(void)
     sprite_mode5_init();
     tile_mode2_init();
     sprite_mode5_init_targets();
+    ground_targets_init();
 
     return true;
 }
@@ -42,6 +45,7 @@ int main(void)
         vsync_last = RIA.vsync;
 
         input_flight_update();
+        ground_targets_update(flight_world_x());
 
     }
 
