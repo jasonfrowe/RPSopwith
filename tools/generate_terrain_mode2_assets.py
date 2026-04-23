@@ -10,6 +10,19 @@ from PIL import Image
 
 GROUND_RE = re.compile(r"s_original_ground\[(\d+)\]\s*=\s*\{(.*?)\};", re.DOTALL)
 
+# SDL Sopwith swinit.c inittarget()/Flatten() uses these same target X positions
+# from swgames.c and flattens [x .. x + symbol_w - 1] with headroom=symbol_h.
+GROUND_TARGET_X = [
+    191, 284, 409, 539, 685, 807, 934,
+    1210, 1240, 1376, 1440,
+    1550, 1608, 1750, 1780, 2024,
+    2159, 2279, 2390, 2549, 2678, 2763,
+]
+
+TARGET_SYMBOL_WIDTH = 16
+TARGET_SYMBOL_HEIGHT = 16
+SOURCE_MAX_Y = 199
+
 
 def parse_ground_samples(header_path: pathlib.Path) -> list[int]:
     text = header_path.read_text(encoding="utf-8")
@@ -22,6 +35,31 @@ def parse_ground_samples(header_path: pathlib.Path) -> list[int]:
     if len(values) != declared_count:
         raise ValueError(f"declared {declared_count} samples, parsed {len(values)}")
     return values
+
+
+def sopwith_flatten(ground: list[int], min_x: int, max_x: int, headroom: int) -> int:
+    """Mirror SDL Sopwith swinit.c: Flatten(minx, maxx, headroom)."""
+    min_h = min(ground[min_x:max_x + 1])
+    max_h = max(ground[min_x:max_x + 1])
+    ave_h = (min_h + max_h) // 2
+    ave_h = min(ave_h, SOURCE_MAX_Y - headroom - 1)
+
+    for x in range(min_x, max_x + 1):
+        ground[x] = ave_h
+
+    return ave_h
+
+
+def apply_sopwith_target_flatten(ground: list[int]) -> list[int]:
+    flattened = list(ground)
+    max_x = len(flattened) - 1
+
+    for x in GROUND_TARGET_X:
+        min_x = max(0, x)
+        max_span_x = min(max_x, x + TARGET_SYMBOL_WIDTH - 1)
+        sopwith_flatten(flattened, min_x, max_span_x, TARGET_SYMBOL_HEIGHT)
+
+    return flattened
 
 
 def tile_indices_to_4bpp_bytes(indices: list[int]) -> bytes:
@@ -161,10 +199,11 @@ def main() -> int:
     # Keep default aligned so a requested +8 means exactly 8 pixels from that baseline.
     y_offset = args.y_offset if args.y_offset is not None else 0
 
+    ground = apply_sopwith_target_flatten(ground)
+
     # Original terrain samples are bottom-origin; convert to top-origin screen Y.
     # This matches the historical port mapping and DOS visual orientation.
-    source_max_y = 199
-    heights = [min(239, max(0, (source_max_y - h) + y_offset)) for h in ground]
+    heights = [min(239, max(0, (SOURCE_MAX_Y - h) + y_offset)) for h in ground]
 
     sky_tile = all_byte(0x11, 32)
     ground_tile = all_byte(0x22, 32)

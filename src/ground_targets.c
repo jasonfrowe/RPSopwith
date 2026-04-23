@@ -43,12 +43,12 @@ static const ground_target_t s_targets[] = {
     // Player 1 base
     {1210, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
     {1240, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {1376, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
+    {1376, OX_FRAME_STANDING, OX_FRAME_DESTROYED, -1},
     {1440, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
 
     // Player 2 base
     {1550, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {1608, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
+    {1608, OX_FRAME_STANDING, OX_FRAME_DESTROYED, -1},
     {1750, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
     {1780, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
     {2024, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
@@ -63,6 +63,7 @@ static const ground_target_t s_targets[] = {
 };
 
 static uint8_t s_target_count;
+static int16_t s_target_ground_y[MAX_TARGETS];
 
 static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_world_x)
 {
@@ -88,6 +89,10 @@ void ground_targets_init(void)
         s_target_count = MAX_TARGETS;
     }
 
+    for (i = 0; i < s_target_count; ++i) {
+        s_target_ground_y[i] = tile_mode2_ground_y_at_world_x(s_targets[i].world_x);
+    }
+
     for (i = 0; i < MAX_TARGETS; ++i) {
         sprite_mode5_set_target(i, -32, -32, 0, false);
     }
@@ -101,8 +106,8 @@ void ground_targets_update(uint16_t camera_world_x)
         const ground_target_t *t = &s_targets[i];
         int16_t dx = world_delta_to_screen_x(t->world_x, camera_world_x);
         int16_t screen_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
-        int16_t world_y = tile_mode2_ground_y_at_world_x(t->world_x);
-        int16_t screen_y = (int16_t)(world_y - (TARGETS_SPRITE_SIZE_PX / 2) + t->y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        int16_t world_y = s_target_ground_y[i];
+        int16_t screen_y = (int16_t)(world_y - TARGETS_SPRITE_SIZE_PX + 1 + t->y_offset_px + TARGET_VERTICAL_BIAS_PX);
         bool visible = (screen_x > -TARGETS_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
         sprite_mode5_set_target(i, screen_x, screen_y, t->frame_standing, visible);
