@@ -5,7 +5,6 @@
 #include "tile_mode2.h"
 #include "sprite_mode5.h"
 
-
 unsigned TILE_GROUND_CONFIG;
 
 static uint8_t xram_read_u8(unsigned addr)

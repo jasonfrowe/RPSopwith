@@ -63,14 +63,18 @@ def tile_bytes_to_indices(tile_bytes: bytes) -> list[int]:
 
 def write_tileset_png(path: pathlib.Path, tiles: list[bytes]) -> None:
     # Convert-script tile mode expects image height == tile size (8px).
-    # Emit a horizontal strip: one 8x8 tile per frame.
+    # Emit a horizontal strip: one 8x8 tile per frame (256 frames total).
+    # Palette:
+    #   index 0 = transparent / sky (black, treated as transparent by runtime)
+    #   index 1 = sky fill (light blue — pure sky tiles)
+    #   index 2 = ground fill (earthy brown-green)
+    # Edge tiles use indices 1 (sky) and 2 (ground) per pixel.
     tile_count = 256
     atlas = Image.new("P", (tile_count * 8, 8), 0)
     palette = [0] * (256 * 3)
-    # Basic debug palette: 0 black, 1 sky blue, 2 green.
-    palette[0:3] = [0, 0, 0]
-    palette[3:6] = [120, 190, 255]
-    palette[6:9] = [80, 160, 80]
+    palette[0:3]  = [0, 0, 0]        # index 0: transparent / unused
+    palette[3:6]  = [100, 160, 220]  # index 1: sky blue
+    palette[6:9]  = [100, 130, 60]   # index 2: ground green-brown
     atlas.putpalette(palette)
 
     for i in range(tile_count):

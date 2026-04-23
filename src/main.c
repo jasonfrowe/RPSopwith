@@ -17,6 +17,7 @@ static bool init_graphics(void)
 
     sprite_mode5_init();
     tile_mode2_init();
+    sprite_mode5_init_targets();
 
     return true;
 }

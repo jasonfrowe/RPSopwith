@@ -22,13 +22,22 @@
 #define GROUND_TILES           (GROUND_DATA + GROUND_DATA_SIZE) // Address for terrain tilemap (tile ID grid)
 #define GROUND_TILES_SIZE       0x2000U            // 8192 bytes (256 x 32 tile indices for 8x8 tiles)
 
-#define SPRITE_DATA_END        (GROUND_TILES + GROUND_TILES_SIZE)
+#define TARGETS_DATA           (GROUND_TILES + GROUND_TILES_SIZE) // Address for target sprite graphics (not used yet)
+#define TARGETS_DATA_SIZE       0x0800U            // 2048 bytes (16 frames of 16x16 at 4bpp)
+#define TARGETS_SPRITE_SIZE_PX  16                 // Target sprite is 16x16 pixels
+#define TARGETS_FRAME_SIZE      0x0080U            // 128 bytes per 16x16 4bpp frame
+#define TARGETS_FRAME_COUNT     16                 // 16 frames different target graphics
+#define MAX_TARGETS             40                 // Max number of targets on screen
+
+#define SPRITE_DATA_END        (TARGETS_DATA + TARGETS_DATA_SIZE)
 
 // Palette configurations
 #define PLAYER_PALETTE_ADDR      0xFC00  // 16-color palette (32 bytes, 0xFC00-0xFC1F)
 #define PLAYER_PALETTE_SIZE      0x0020
 #define TILE_GROUND_PALETTE_ADDR 0xFC20  // 16-color palette for terrain tiles (32 bytes, 0xFC20-0xFC3F)
 #define TILE_GROUND_PALETTE_SIZE 0x0020
+#define TARGETS_PALETTE_ADDR     0xFC40  // 16-color palette for target tiles (32 bytes, 0xFC40-0xFC5F)
+#define TARGETS_PALETTE_SIZE     0x0020
 
 // OPL2 sound chip configuration
 #define OPL_XRAM_ADDR   0xFE00  // Native RIA OPL2 register page
@@ -46,5 +55,7 @@
 
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
+extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is stored, for updates
+extern unsigned TARGETS_CONFIG; // Address in XRAM where target sprites config is stored, for
 
 #endif // CONSTANTS_H
