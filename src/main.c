@@ -20,6 +20,7 @@ static bool init_graphics(void)
     sprite_mode5_init();
     tile_mode2_init();
     sprite_mode5_init_targets();
+    // sprite_mode5_init_projectiles();
     ground_targets_init();
 
     return true;

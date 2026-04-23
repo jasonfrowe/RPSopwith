@@ -7,6 +7,7 @@
 // Store the player config address for updates
 unsigned PLAYER_CONFIG;
 unsigned TARGETS_CONFIG;
+unsigned PROJECTILES_CONFIG;
 
 void sprite_mode5_init(void) {
     int16_t center_x = (int16_t)((SCREEN_WIDTH - PLAYER_SPRITE_SIZE_PX) / 2);
@@ -56,6 +57,32 @@ void sprite_mode5_init_targets(void) {
     for (int i = 0; i < 16; i++) {
         RIA.rw0 = targets_palette[i] & 0xFF;
         RIA.rw0 = targets_palette[i] >> 8;
+    }
+}
+
+void sprite_mode5_init_projectiles(void) {
+    PROJECTILES_CONFIG = TARGETS_CONFIG + MAX_TARGETS * sizeof(vga_mode5_sprite_t); // Just after tile HUD config
+
+    for (uint8_t i = 0; i < MAX_PROJECTILES; i++) {
+
+        unsigned ptr = PROJECTILES_CONFIG + (i * sizeof(vga_mode5_sprite_t));
+
+        xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, -32); // Start off-screen
+        xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, -32);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, xram_sprite_ptr, PROJECTILE_DATA);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, palette_ptr, PROJECTILE_PALETTE_ADDR);
+    }
+
+    // Mode 5 args: MODE, OPTIONS, CONFIG, LENGTH, PLANE, BEGIN, END
+    if (xreg_vga_mode(5, 0x0A, PROJECTILES_CONFIG, MAX_PROJECTILES, 1, 0, 0) < 0) {
+        return;
+    }
+
+    RIA.addr0 = PROJECTILE_PALETTE_ADDR;
+    RIA.step0 = 1;
+    for (int i = 0; i < 16; i++) {
+        RIA.rw0 = projectiles_palette[i] & 0xFF;
+        RIA.rw0 = projectiles_palette[i] >> 8;
     }
 }
 
