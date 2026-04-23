@@ -157,10 +157,12 @@ def main() -> int:
 
     world_width_tiles = world_width_px // args.tile_size
     world_height_tiles = args.screen_height // args.tile_size
-    y_offset = args.y_offset if args.y_offset is not None else (args.screen_height - 200)
+    # Repository pipeline uses y_offset=0 as the baseline placement.
+    # Keep default aligned so a requested +8 means exactly 8 pixels from that baseline.
+    y_offset = args.y_offset if args.y_offset is not None else 0
 
-    # Flip source Y to match original terrain orientation expected by this port,
-    # then apply optional display offset.
+    # Original terrain samples are bottom-origin; convert to top-origin screen Y.
+    # This matches the historical port mapping and DOS visual orientation.
     source_max_y = 199
     heights = [min(239, max(0, (source_max_y - h) + y_offset)) for h in ground]
 
