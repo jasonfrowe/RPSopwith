@@ -2,30 +2,17 @@
 
 #include <stdbool.h>
 
+#include "constants.h"
+#include "game/terrain/original_ground_3000.h"
+
 static uint8_t s_height[TERRAIN_WORLD_WIDTH];
 
 void terrain_init(void)
 {
-    uint16_t seed = 0x6502u;
-    uint8_t y = 188u;
-
     for (uint16_t x = 0; x < TERRAIN_WORLD_WIDTH; ++x) {
-        int8_t delta;
-
-        seed = (uint16_t)(seed * 109u + 89u);
-        delta = (int8_t)((seed >> 8) & 0x03u) - 1;
-
-        if ((seed & 0x001Fu) == 0) {
-            delta = (int8_t)((seed >> 5) & 0x07u) - 3;
-        }
-
-        if (delta > 0 && y < 220u) {
-            y = (uint8_t)(y + (uint8_t)delta);
-        } else if (delta < 0 && y > 120u) {
-            y = (uint8_t)(y - (uint8_t)(-delta));
-        }
-
-        s_height[x] = y;
+        uint16_t y = (uint16_t)((RPS_SOURCE_SCREEN_HEIGHT_PX - 1u) - s_original_ground[x]) +
+                     RPS_TERRAIN_SCREEN_Y_OFFSET_PX;
+        s_height[x] = (y > 239u) ? 239u : (uint8_t)y;
     }
 }
 

@@ -136,6 +136,48 @@ static bool plane_collides_with_terrain(const game_state_t *state, int16_t plane
     return false;
 }
 
+static int16_t player_runway_ground_y(void)
+{
+    int16_t height = 0;
+
+    for (uint16_t x = RPS_PLAYER1_START_WORLD_X;
+         x <= (uint16_t)(RPS_PLAYER1_START_WORLD_X + RPS_PLAYER_RUNWAY_SPAN_PX);
+         ++x) {
+        int16_t ground_y = (int16_t)terrain_height_at_world_x(x);
+        if (ground_y > height) {
+            height = ground_y;
+        }
+    }
+
+    return height;
+}
+
+static int16_t plane_top_y_for_ground(int16_t ground_y)
+{
+    return (int16_t)(ground_y - (int16_t)RPS_PLANE_GROUND_CONTACT_FROM_TOP_PX);
+}
+
+static void reset_plane_to_home(game_state_t *state)
+{
+    state->prev_world_x = RPS_PLAYER1_START_WORLD_X;
+    state->world_x = RPS_PLAYER1_START_WORLD_X;
+    state->plane_x = (int16_t)(RPS_SCREEN_WIDTH_PX / 2u);
+    state->plane_y = plane_top_y_for_ground(player_runway_ground_y());
+    state->plane_bank = 0;
+    state->plane_pitch = 0;
+    state->plane_vy = 0;
+    state->throttle = 0;
+    state->speed = 0;
+    state->airborne = false;
+    state->plane_orient = false;
+    state->stalled_high = false;
+    state->landing = false;
+    state->prev_flip_held = false;
+    state->prev_land_held = false;
+    state->stall_tick = 0;
+    state->crashed = false;
+}
+
 // Sopwith table: sine(pi/8 increments) * 256.
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -151,29 +193,13 @@ static const int8_t s_gravity_bias[16] = {
 void game_init(game_state_t *state)
 {
     state->tick_count_10hz = 0;
-    state->prev_world_x = RPS_SCREEN_WIDTH_PX / 2u;
-    state->world_x = RPS_SCREEN_WIDTH_PX / 2u;
-    state->plane_x = (int16_t)(RPS_SCREEN_WIDTH_PX / 2u);
-    state->plane_y = (int16_t)(RPS_SCREEN_HEIGHT_PX - 40u);
-    state->plane_bank = 0;
-    state->plane_pitch = 0;
-    state->plane_vy = 0;
-    state->throttle = 0;
-    state->speed = 0;
-    state->airborne = false;
-    state->plane_orient = false;
-    state->stalled_high = false;
-    state->landing = false;
-    state->prev_flip_held = false;
-    state->prev_land_held = false;
-    state->stall_tick = 0;
     state->terrain_edit_cooldown = 0;
-    state->crashed = false;
 
 #if SOPWITH_FEATURE_TERRAIN
     terrain_init();
-    state->plane_y = (int16_t)terrain_height_at_world_x(state->world_x) - (int16_t)RPS_MODE5_SPRITE_SIZE_PX;
 #endif
+
+    reset_plane_to_home(state);
 }
 
 void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
@@ -324,7 +350,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
         }
 
         if (!state->airborne) {
-            grounded_y = (int16_t)(terrain_y - (int16_t)RPS_MODE5_SPRITE_SIZE_PX);
+            grounded_y = plane_top_y_for_ground(terrain_y);
 
             // Match Sopwith feel on terrain contact: if the active sprite mask
             // intersects a rising wall while rolling, treat as a crash.
@@ -363,7 +389,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
                     state->speed = 0;
                     state->throttle = 0;
                     state->plane_pitch = 0;
-                    state->plane_y = (int16_t)(terrain_y - (int16_t)RPS_MODE5_SPRITE_SIZE_PX);
+                    state->plane_y = plane_top_y_for_ground(terrain_y);
                     state->plane_vy = 0;
                 }
             }
@@ -383,7 +409,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
                     state->speed = 0;
                     state->throttle = 0;
                     state->plane_pitch = 0;
-                    state->plane_y = (int16_t)(terrain_y - (int16_t)RPS_MODE5_SPRITE_SIZE_PX);
+                    state->plane_y = plane_top_y_for_ground(terrain_y);
                     state->plane_vy = 0;
                 }
             }
@@ -426,16 +452,7 @@ void game_tick_10hz(game_state_t *state, const input_actions_t *actions)
 #endif
 
     if (actions->start && state->crashed) {
-        state->airborne = false;
-        state->plane_pitch = 0;
-        state->plane_vy = 0;
-        state->throttle = 0;
-        state->speed = 0;
-        state->plane_orient = false;
-        state->stalled_high = false;
-        state->landing = false;
-        state->stall_tick = 0;
-        state->crashed = false;
+        reset_plane_to_home(state);
     }
 }
 
