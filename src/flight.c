@@ -550,3 +550,8 @@ bool flight_is_crashed(void)
 {
     return s_flight.crashed;
 }
+
+int16_t flight_terrain_y_at(uint16_t world_x)
+{
+    return (int16_t)terrain_height_at_world_x(world_x);
+}

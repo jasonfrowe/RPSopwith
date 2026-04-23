@@ -3,6 +3,7 @@
 
 #include "constants.h"
 #include "flight.h"
+#include "ground_targets.h"
 #include "projectiles.h"
 #include "sprite_mode5.h"
 
@@ -257,11 +258,21 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
-                if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+                int16_t terrain_y = flight_terrain_y_at(p->world_x);
+                if (ground_targets_check_hit(p->world_x, p->center_y) ||
+                    p->center_y >= terrain_y ||
+                    p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
                 }
             } else {
                 p->center_y = (int16_t)(p->center_y + p->vy);
+
+                int16_t terrain_y = flight_terrain_y_at(p->world_x);
+                if (ground_targets_check_hit(p->world_x, p->center_y) ||
+                    p->center_y >= terrain_y) {
+                    p->active = false;
+                }
+
                 if (p->life_ticks > 0) {
                     --p->life_ticks;
                 }
