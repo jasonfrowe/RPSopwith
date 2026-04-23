@@ -99,4 +99,56 @@
 #define RPS_GAMEPAD_INPUT_ADDR 0xFF78u
 #define RPS_KEYBOARD_INPUT_ADDR 0xFFA0u
 
+// -----------------------------------------------------------------------------
+// Compile-time XRAM safety checks
+// -----------------------------------------------------------------------------
+
+#define RPS_GAMEPAD_INPUT_BYTES 10u
+#define RPS_KEYBOARD_INPUT_BYTES 32u
+
+_Static_assert(
+	RPS_XRAM_MODE2_CONFIG_ADDR + RPS_XRAM_MODE2_CONFIG_BYTES <= RPS_XRAM_MODE2_TILEMAP_ADDR,
+	"Mode-2 config overlaps tilemap"
+);
+_Static_assert(
+	RPS_XRAM_MODE2_TILEMAP_ADDR + RPS_MODE2_TILEMAP_BYTES <= RPS_XRAM_MODE2_TILESET_ADDR,
+	"Mode-2 tilemap overlaps tileset"
+);
+_Static_assert(
+	RPS_XRAM_MODE2_TILESET_ADDR + RPS_MODE2_TILESET_BYTES <= RPS_XRAM_MODE2_PALETTE_ADDR,
+	"Mode-2 tileset overlaps palette"
+);
+_Static_assert(
+	RPS_XRAM_MODE2_PALETTE_ADDR + RPS_XRAM_MODE2_PALETTE_BYTES <= RPS_XRAM_MODE5_CONFIG_ADDR,
+	"Mode-2 palette overlaps Mode-5 config"
+);
+_Static_assert(
+	RPS_XRAM_MODE5_CONFIG_ADDR + RPS_XRAM_MODE5_CONFIG_BYTES <= RPS_XRAM_MODE5_SPRITE_DATA_ADDR,
+	"Mode-5 config overlaps sprite data"
+);
+_Static_assert(
+	RPS_XRAM_MODE5_SPRITE_DATA_ADDR + RPS_XRAM_MODE5_SPRITE_DATA_BYTES <= RPS_XRAM_MODE5_PALETTE_ADDR,
+	"Mode-5 sprite data overlaps palette"
+);
+_Static_assert(
+	RPS_XRAM_VIDEO_END <= RPS_XRAM_TERRAIN_TILESET_ADDR,
+	"Runtime video XRAM overlaps ROM asset region"
+);
+_Static_assert(
+	RPS_XRAM_VIDEO_END <= RPS_GAMEPAD_INPUT_ADDR,
+	"Runtime video XRAM overlaps firmware gamepad buffer"
+);
+_Static_assert(
+	RPS_GAMEPAD_INPUT_ADDR + RPS_GAMEPAD_INPUT_BYTES <= RPS_KEYBOARD_INPUT_ADDR,
+	"Gamepad and keyboard firmware buffers overlap"
+);
+_Static_assert(
+	RPS_KEYBOARD_INPUT_ADDR + RPS_KEYBOARD_INPUT_BYTES <= 0x10000u,
+	"Keyboard firmware buffer exceeds XRAM range"
+);
+_Static_assert(
+	RPS_XRAM_WORLD_TILEMAP_ADDR + RPS_XRAM_WORLD_TILEMAP_BYTES <= 0x100000u,
+	"ROM world tilemap exceeds RP6502 ROM range"
+);
+
 #endif
