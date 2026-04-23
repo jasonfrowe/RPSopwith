@@ -282,10 +282,15 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
             continue;
         }
 
-        int16_t dx = world_delta_to_screen_x(p->world_x, camera_world_x);
+        uint16_t render_world_x = wrap_world_x(
+            (int32_t)p->world_x + (int32_t)p->vx * s_tick_div / PROJECTILE_TICK_DIV);
+        int16_t render_center_y = (int16_t)(p->center_y +
+            (int16_t)p->vy * s_tick_div / PROJECTILE_TICK_DIV);
+
+        int16_t dx = world_delta_to_screen_x(render_world_x, camera_world_x);
         int16_t screen_center_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
         int16_t sprite_x = (int16_t)(screen_center_x - (PROJECTILE_SPRITE_SIZE_PX / 2));
-        int16_t sprite_y = (int16_t)(p->center_y - (PROJECTILE_SPRITE_SIZE_PX / 2));
+        int16_t sprite_y = (int16_t)(render_center_y - (PROJECTILE_SPRITE_SIZE_PX / 2));
         bool visible = (sprite_x > -PROJECTILE_SPRITE_SIZE_PX) && (sprite_x < SCREEN_WIDTH) &&
                        (sprite_y > -PROJECTILE_SPRITE_SIZE_PX) && (sprite_y < SCREEN_HEIGHT);
 
