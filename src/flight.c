@@ -266,7 +266,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
     bool stalled;
     const uint8_t stall_count = 6u;
     const uint8_t stall_recover_angle = 12u;
-    const int16_t stall_enter_y = (int16_t)(-(int16_t)(PLAYER_SPRITE_SIZE_PX / 2u));
+    const int16_t stall_enter_y = 0;
 
     state->tick_count_10hz++;
     state->prev_world_x = state->world_x;
@@ -274,6 +274,9 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
     if (!state->crashed) {
         if (state->airborne && !state->stalled_high && state->plane_y <= stall_enter_y) {
             enter_stall_state(state);
+            // Match Sopwith's immediate re-evaluation after entering stall.
+            flight_tick_10hz(state, actions);
+            return;
         }
 
         stalled = state->stalled_high;
@@ -362,7 +365,9 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         if (update) {
             if (state->airborne && !stalled && nspeed <= 0) {
                 enter_stall_state(state);
-                stalled = true;
+                // Match Sopwith's immediate re-evaluation after entering stall.
+                flight_tick_10hz(state, actions);
+                return;
             } else {
                 state->plane_pitch = (int8_t)nangle;
                 state->speed = (uint8_t)clamp_i16(nspeed, 0, (MAX_SPEED + MAX_THROTTLE));
