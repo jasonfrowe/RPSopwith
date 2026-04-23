@@ -209,7 +209,7 @@ static void update_player_sprite_animation(const game_state_t *state)
 static void update_player_sprite_position(const game_state_t *state)
 {
     int16_t sprite_x = (int16_t)(state->plane_x - (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
-    int16_t sprite_y = (int16_t)(state->plane_y - (int16_t)(RPS_MODE5_SPRITE_SIZE_PX / 2u));
+    int16_t sprite_y = state->plane_y;
 
     if (sprite_x < 0) {
         sprite_x = 0;

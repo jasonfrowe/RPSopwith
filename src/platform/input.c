@@ -287,8 +287,8 @@ void platform_input_poll(input_actions_t *actions)
     actions->down = action_pressed(ACTION_MOVE_DOWN) || key_is_down(KEY_S);
     actions->left = action_pressed(ACTION_MOVE_LEFT) || key_is_down(KEY_A);
     actions->right = action_pressed(ACTION_MOVE_RIGHT) || key_is_down(KEY_D);
-    actions->land = action_pressed(ACTION_BTN_LAND_HOME) || key_is_down(KEY_H);
     actions->flip = action_pressed(ACTION_BTN_FLIP);
+    actions->land = action_pressed(ACTION_BTN_LAND_HOME) || key_is_down(KEY_H);
     actions->fire = action_pressed(ACTION_BTN_FIRE) || key_is_down(KEY_SPACE);
     actions->bomb = action_pressed(ACTION_BTN_BOMB);
     actions->start = action_pressed(ACTION_BTN_START);
