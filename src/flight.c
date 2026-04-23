@@ -486,3 +486,8 @@ void flight_update(const input_actions_t *actions)
 
     apply_visuals(&s_flight);
 }
+
+uint16_t flight_world_x(void)
+{
+    return s_flight.world_x;
+}

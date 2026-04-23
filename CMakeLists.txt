@@ -24,6 +24,7 @@ target_sources(RPSopwith PRIVATE
     src/main.c
     src/input.c
     src/flight.c
+    src/ground_targets.c
     src/sprite_mode5.c
     src/tile_mode2.c
 )
