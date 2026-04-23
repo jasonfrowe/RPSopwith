@@ -51,7 +51,7 @@ void ambient_flocks_update(uint16_t camera_world_x)
     for (i = 0; i < (uint8_t)(sizeof(s_flock_world_x) / sizeof(s_flock_world_x[0])); ++i) {
         int16_t dx = world_delta_to_screen_x(s_flock_world_x[i], camera_world_x);
         int16_t screen_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
-        int16_t screen_y = 0;
+        int16_t screen_y = 1;
         bool visible = (screen_x > -PROJECTILE_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
         sprite_mode5_set_projectile(i, screen_x, screen_y, frame, visible);
