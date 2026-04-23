@@ -258,18 +258,18 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
-                int16_t terrain_y = flight_terrain_y_at(p->world_x);
+                int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
                 if (ground_targets_check_hit(p->world_x, p->center_y) ||
-                    p->center_y >= terrain_y ||
+                    p->center_y >= (terrain_y - 8) ||
                     p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
                 }
             } else {
                 p->center_y = (int16_t)(p->center_y + p->vy);
 
-                int16_t terrain_y = flight_terrain_y_at(p->world_x);
+                int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
                 if (ground_targets_check_hit(p->world_x, p->center_y) ||
-                    p->center_y >= terrain_y) {
+                    p->center_y >= (terrain_y - 8)) {
                     p->active = false;
                 }
 
