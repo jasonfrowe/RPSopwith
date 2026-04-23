@@ -23,8 +23,8 @@ typedef struct ground_target_s {
 #define FRAME_STANDING(orient) ((uint8_t)((orient) * 2u))
 #define FRAME_DESTROYED(orient) ((uint8_t)(((orient) * 2u) + 1u))
 
-#define OX_FRAME_STANDING FRAME_STANDING(3u)
-#define OX_FRAME_DESTROYED FRAME_DESTROYED(3u)
+#define OX_FRAME_STANDING ((uint8_t)16u)
+#define OX_FRAME_DESTROYED ((uint8_t)17u)
 
 static const ground_target_t s_targets[] = {
     // Left side of map
