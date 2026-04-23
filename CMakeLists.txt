@@ -13,6 +13,7 @@ add_executable(RPSopwith)
 rp6502_asset(RPSopwith 0x10000 images/player_bank_strip_4bpp.bin)
 rp6502_asset(RPSopwith 0x11000 images/terrain_world_tilemap.bin)
 rp6502_asset(RPSopwith 0x13BF2 images/terrain_tileset_4bpp.bin)
+rp6502_asset(RPSopwith 0x15BF2 images/targets_strip_4bpp.bin)
 
 rp6502_executable(RPSopwith 
     DATA file 

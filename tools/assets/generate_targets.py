@@ -2,8 +2,9 @@
 """
 Generate RP6502 Mode-5 target sprites from SDL Sopwith source.
 
-Extracts target sprites from swsymbol.c and converts to 16x16 4bpp binary format.
-Each target has a standing variant and a destroyed/hit variant.
+Extracts target sprites from swsymbol.c and emits a horizontal PNG strip
+(one 16x16 frame per target state, standing then destroyed, left to right).
+Feed the output PNG to convert_sprite.py to produce the 4bpp .bin + palette.
 """
 
 import argparse
@@ -11,10 +12,21 @@ import pathlib
 import re
 import sys
 
+from PIL import Image
+
 
 SIZE = 16
 SOPWITH_SYMBOL_PATH = pathlib.Path("/Users/rowe/Software/games/sdl-sopwith/src/swsymbol.c")
 COLOR_CHARS = " *-#"
+
+# Palette: index → RGB tuple.
+# 0 = transparent (black), 1 = khaki body, 2 = light tan highlight, 3 = dark shadow.
+TARGET_COLORS = {
+    0: (0, 0, 0),
+    1: (180, 160, 120),
+    2: (220, 200, 160),
+    3: (100, 80, 60),
+}
 
 
 def parse_swsymbol_targets(path: pathlib.Path) -> dict:
@@ -102,8 +114,8 @@ def parse_swsymbol_targets(path: pathlib.Path) -> dict:
 def ascii_to_pixels(lines: list[str]) -> list[list[int]]:
     """
     Convert ASCII art lines to pixel palette indices.
-    ' '=0 (transparent), '*'=1 (body), '-'=2 (edge/light), '#'=3 (dark/shadow).
-    Each line is 32 chars representing 16 pixels (2 chars per pixel for clarity).
+    ' '=0 (transparent), '*'=1 (body), '-'=2 (highlight), '#'=3 (shadow).
+    Each line is 32 chars representing 16 pixels (2 chars per pixel).
     """
     out = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
     for y in range(min(SIZE, len(lines))):
@@ -120,18 +132,25 @@ def ascii_to_pixels(lines: list[str]) -> list[list[int]]:
     return out
 
 
-def pixels_to_4bpp_bytes(pixels: list[list[int]]) -> bytes:
-    """
-    Convert 16x16 pixel grid (4bpp) to RP6502 "tall" format.
-    Each row: SIZE bytes, each byte holds 2 pixels (4bpp each, left=high, right=low).
-    """
-    out = bytearray()
+def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
     for y in range(SIZE):
-        for x in range(0, SIZE, 2):
-            high_nibble = pixels[y][x] & 0x0F
-            low_nibble = pixels[y][x + 1] & 0x0F
-            out.append((high_nibble << 4) | low_nibble)
-    return bytes(out)
+        for x in range(SIZE):
+            c = pixels[y][x]
+            img.putpixel((ox + x, y), c)
+
+
+def make_strip(frames: list[list[list[int]]]) -> Image.Image:
+    """Build a horizontal PNG strip from a list of 16x16 pixel grids."""
+    img = Image.new("P", (SIZE * len(frames), SIZE), 0)
+    palette = [0] * (256 * 3)
+    for idx, (r, g, b) in TARGET_COLORS.items():
+        palette[idx * 3 + 0] = r
+        palette[idx * 3 + 1] = g
+        palette[idx * 3 + 2] = b
+    img.putpalette(palette)
+    for i, pixels in enumerate(frames):
+        blit_pixels(img, i * SIZE, pixels)
+    return img
 
 
 def main() -> int:
@@ -145,10 +164,10 @@ def main() -> int:
         help="Path to SDL Sopwith swsymbol.c"
     )
     parser.add_argument(
-        "--targets-bin",
+        "--out-png",
         type=pathlib.Path,
-        required=True,
-        help="Output binary for all target sprites (standing + hit variants)"
+        default=pathlib.Path("Sprites/targets_strip.png"),
+        help="Output PNG horizontal strip (default: Sprites/targets_strip.png)",
     )
     parser.add_argument(
         "--num-targets",
@@ -170,37 +189,29 @@ def main() -> int:
 
     standing_sprites = targets_data.get("standing", [])
     hit_sprites = targets_data.get("hit", [])
-    
+
     if not standing_sprites:
         print("error: no standing target sprites found", file=sys.stderr)
         return 1
 
-    # Generate output: 2 variants (standing + hit) × num_targets × 128 bytes per sprite
-    all_sprites = bytearray()
+    # Build frame list: standing then destroyed, interleaved per target.
+    # Layout: [target0_stand, target0_hit, target1_stand, target1_hit, ...]
     num_generated = min(args.num_targets, len(standing_sprites))
-    
+    frames: list[list[list[int]]] = []
     for i in range(num_generated):
-        # Standing variant
-        if i < len(standing_sprites):
-            pixels = ascii_to_pixels(standing_sprites[i])
-        else:
-            pixels = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
-        all_sprites.extend(pixels_to_4bpp_bytes(pixels))
-        
-        # Hit/destroyed variant
-        if i < len(hit_sprites) and hit_sprites[i]:
-            pixels = ascii_to_pixels(hit_sprites[i])
-        else:
-            pixels = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
-        all_sprites.extend(pixels_to_4bpp_bytes(pixels))
-    
-    args.targets_bin.parent.mkdir(parents=True, exist_ok=True)
-    args.targets_bin.write_bytes(all_sprites)
-    
-    bytes_per_sprite = SIZE * SIZE // 2
-    total_sprites = num_generated * 2  # standing + hit per target
-    print(f"Generated {num_generated} target types (standing + destroyed)")
-    print(f"Total sprites: {total_sprites} × {bytes_per_sprite} bytes = {len(all_sprites)} bytes")
+        standing_pixels = ascii_to_pixels(standing_sprites[i]) if i < len(standing_sprites) else [[0]*SIZE for _ in range(SIZE)]
+        hit_pixels = ascii_to_pixels(hit_sprites[i]) if i < len(hit_sprites) and hit_sprites[i] else [[0]*SIZE for _ in range(SIZE)]
+        frames.append(standing_pixels)
+        frames.append(hit_pixels)
+
+    img = make_strip(frames)
+    args.out_png.parent.mkdir(parents=True, exist_ok=True)
+    img.save(args.out_png)
+
+    total_frames = len(frames)
+    print(f"Generated {num_generated} target types × 2 states = {total_frames} frames")
+    print(f"Strip size: {img.width}×{img.height} → {args.out_png}")
+    print(f"Next: python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette {args.out_png}")
     return 0
 
 

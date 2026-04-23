@@ -2,9 +2,11 @@
 #include <stdint.h>
 #include "constants.h"
 #include "sprite_mode5.h"
+#include "tile_mode2.h"
 
 // Store the player config address for updates
 unsigned PLAYER_CONFIG;
+unsigned TARGETS_CONFIG;
 
 void sprite_mode5_init(void) {
     int16_t center_x = (int16_t)((SCREEN_WIDTH - PLAYER_SPRITE_SIZE_PX) / 2);
@@ -30,6 +32,33 @@ void sprite_mode5_init(void) {
         RIA.rw0 = player_palette[i] >> 8;
     }
 }
+
+void sprite_mode5_init_targets(void) {
+    TARGETS_CONFIG = TILE_GROUND_CONFIG + sizeof(vga_mode2_config_t); // Just after tile HUD config
+
+    for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+
+        unsigned ptr = TARGETS_CONFIG + (i * sizeof(vga_mode5_sprite_t));
+
+        xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, -32); // Start off-screen
+        xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, -32);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, xram_sprite_ptr, TARGETS_DATA);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, palette_ptr, TARGETS_PALETTE_ADDR);
+    }
+
+    // Mode 5 args: MODE, OPTIONS, CONFIG, LENGTH, PLANE, BEGIN, END
+    if (xreg_vga_mode(5, 0x0A, TARGETS_CONFIG, MAX_TARGETS, 0, 0, 0) < 0) {
+        return;
+    }
+
+    RIA.addr0 = TARGETS_PALETTE_ADDR;
+    RIA.step0 = 1;
+    for (int i = 0; i < 16; i++) {
+        RIA.rw0 = targets_palette[i] & 0xFF;
+        RIA.rw0 = targets_palette[i] >> 8;
+    }
+}
+
 
 void sprite_mode5_set_position(int16_t x, int16_t y)
 {

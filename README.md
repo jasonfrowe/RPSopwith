@@ -148,3 +148,17 @@ Next steps (recommended order):
 - Keep XRAM allocations and layer ownership explicit.
 - Prefer build-generated assets over runtime synthesis.
 - Keep gameplay deterministic at 10 Hz; rendering may interpolate only.
+
+
+
+# 1. Player (already exists — re-run to regenerate from source)
+python tools/assets/generate_player_strip.py
+python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette Sprites/player_bank_strip.png
+
+# 2. Terrain
+python tools/generate_terrain_mode2_assets.py --ground-header src/original_ground_3000.h --screen-height 240 --tile-size 8 --y-offset 0
+python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette Sprites/terrain_tileset.png
+
+# 3. Targets
+python tools/assets/generate_targets.py
+python tools/convert_sprite.py --bpp 4 --mode tile --extract-palette Sprites/targets_strip.png
