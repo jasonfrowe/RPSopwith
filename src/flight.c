@@ -15,6 +15,7 @@ typedef struct flight_state_s {
     uint16_t prev_world_x;
     uint16_t world_x;
     int16_t plane_x;
+    int16_t prev_plane_y;
     int16_t plane_y;
     int8_t plane_bank;
     int8_t plane_pitch;
@@ -44,6 +45,8 @@ static uint8_t s_terrain_height[WORLD_WIDTH_PX];
 static bool s_terrain_ready = false;
 static flight_state_t s_flight;
 static uint8_t s_tick_div = 0;
+static uint16_t s_render_world_x;
+static int16_t s_render_plane_y;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -74,6 +77,20 @@ static int16_t clamp_i16(int16_t v, int16_t lo, int16_t hi)
         return hi;
     }
     return v;
+}
+
+static int16_t wrapped_world_delta(uint16_t from_x, uint16_t to_x)
+{
+    int16_t delta = (int16_t)to_x - (int16_t)from_x;
+    int16_t half_world = (int16_t)(WORLD_WIDTH_PX / 2);
+
+    if (delta > half_world) {
+        delta -= (int16_t)WORLD_WIDTH_PX;
+    } else if (delta < -half_world) {
+        delta += (int16_t)WORLD_WIDTH_PX;
+    }
+
+    return delta;
 }
 
 static int8_t clamp_i8(int8_t value, int8_t min_value, int8_t max_value)
@@ -224,6 +241,7 @@ static void reset_plane_to_home(flight_state_t *state)
     state->prev_world_x = PLAYER_START_WORLD_X_PX;
     state->world_x = PLAYER_START_WORLD_X_PX;
     state->plane_x = (int16_t)(SCREEN_WIDTH / 2u);
+    state->prev_plane_y = plane_top_y_for_ground(player_runway_ground_y());
     state->plane_y = plane_top_y_for_ground(player_runway_ground_y());
     state->plane_bank = 0;
     state->plane_pitch = 0;
@@ -247,8 +265,19 @@ static void apply_visuals(const flight_state_t *state)
 
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, xram_sprite_ptr,
                      (uint16_t)(PLAYER_DATA + ((unsigned)frame_index * PLAYER_FRAME_SIZE)));
-    sprite_mode5_set_position(sprite_x, state->plane_y);
-    tile_mode2_set_scroll_x((int16_t)state->world_x);
+    sprite_mode5_set_position(sprite_x, s_render_plane_y);
+    tile_mode2_set_scroll_x((int16_t)s_render_world_x);
+}
+
+static void update_render_interpolation(const flight_state_t *state)
+{
+    int16_t world_delta = wrapped_world_delta(state->prev_world_x, state->world_x);
+    int16_t plane_delta_y = (int16_t)(state->plane_y - state->prev_plane_y);
+    int16_t world_pred = (int16_t)state->world_x + (int16_t)((world_delta * (int16_t)s_tick_div) / FLIGHT_FPS_DIV);
+    int16_t plane_pred_y = state->plane_y + (int16_t)((plane_delta_y * (int16_t)s_tick_div) / FLIGHT_FPS_DIV);
+
+    s_render_world_x = (uint16_t)wrap_world_x(world_pred);
+    s_render_plane_y = plane_pred_y;
 }
 
 static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actions)
@@ -270,6 +299,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
 
     state->tick_count_10hz++;
     state->prev_world_x = state->world_x;
+    state->prev_plane_y = state->plane_y;
 
     if (!state->crashed) {
         if (state->airborne && !state->stalled_high && state->plane_y <= stall_enter_y) {
@@ -474,6 +504,8 @@ void flight_init(void)
     s_tick_div = 0;
     memset(&s_flight, 0, sizeof(s_flight));
     reset_plane_to_home(&s_flight);
+    s_render_world_x = s_flight.world_x;
+    s_render_plane_y = s_flight.plane_y;
     apply_visuals(&s_flight);
 }
 
@@ -484,10 +516,11 @@ void flight_update(const input_actions_t *actions)
         flight_tick_10hz(&s_flight, actions);
     }
 
+    update_render_interpolation(&s_flight);
     apply_visuals(&s_flight);
 }
 
 uint16_t flight_world_x(void)
 {
-    return s_flight.world_x;
+    return s_render_world_x;
 }
