@@ -21,7 +21,7 @@
 
 #define RPS_PLAYER1_START_WORLD_X 1270u
 #define RPS_PLAYER_RUNWAY_SPAN_PX 20u
-#define RPS_PLANE_GROUND_CONTACT_FROM_TOP_PX 16u
+#define RPS_PLANE_GROUND_CONTACT_FROM_TOP_PX 13u
 
 // -----------------------------------------------------------------------------
 // Flight model (Sopwith-inspired 10 Hz tuning)
