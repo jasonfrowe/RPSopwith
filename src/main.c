@@ -5,6 +5,7 @@
 #include "constants.h"
 #include "ground_targets.h"
 #include "input.h"
+#include "projectiles.h"
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 #include "flight.h"
@@ -23,6 +24,7 @@ static bool init_graphics(void)
     sprite_mode5_init_targets();
     sprite_mode5_init_projectiles();
     ground_targets_init();
+    projectiles_init();
     ambient_flocks_init();
 
     return true;
@@ -48,6 +50,7 @@ int main(void)
         vsync_last = RIA.vsync;
 
         input_flight_update();
+        projectiles_update(flight_world_x(), input_last_actions());
         ground_targets_update(flight_world_x());
         ambient_flocks_update(flight_world_x());
 

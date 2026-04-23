@@ -200,6 +200,15 @@ static int16_t plane_top_y_for_ground(int16_t ground_y)
     return (int16_t)(ground_y - (int16_t)PLAYER_GROUND_CONTACT_FROM_TOP_PX);
 }
 
+static bool can_touchdown_safely(const flight_state_t *state)
+{
+    uint8_t pitch = (uint8_t)state->plane_pitch & 0x0Fu;
+    bool near_level = (pitch <= 1u) || (pitch >= 15u);
+
+    // Sopwith effectively requires a gentle, upright touchdown.
+    return (!state->plane_orient) && near_level;
+}
+
 static bool plane_collides_with_terrain(const flight_state_t *state, int16_t plane_top_y)
 {
     int16_t center_world_x = (int16_t)state->world_x;
@@ -319,10 +328,12 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         if (actions->left && state->throttle < MAX_THROTTLE) {
             state->throttle++;
             state->landing = false;
+            update = 1;
         }
         if (actions->right && state->throttle > 0) {
             state->throttle--;
             state->landing = false;
+            update = 1;
         }
 
         if (actions->down) {
@@ -368,14 +379,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         nspeed = state->speed;
 
         if ((state->tick_count_10hz & 0x3u) == 0u) {
-            if (!state->airborne) {
-                if (state->throttle == 0 && flaps == 0) {
-                    nspeed = 0;
-                } else {
-                    nspeed = MIN_SPEED;
-                }
-                update = 1;
-            } else {
+            if (state->airborne) {
                 if (!stalled && nspeed < MIN_SPEED) {
                     nspeed--;
                     update = 1;
@@ -393,15 +397,21 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         }
 
         if (update) {
-            if (state->airborne && !stalled && nspeed <= 0) {
+            if (!state->airborne) {
+                if (state->throttle == 0 && flaps == 0) {
+                    nspeed = 0;
+                } else {
+                    nspeed = MIN_SPEED;
+                }
+            } else if (!stalled && nspeed <= 0) {
                 enter_stall_state(state);
                 // Match Sopwith's immediate re-evaluation after entering stall.
                 flight_tick_10hz(state, actions);
                 return;
-            } else {
-                state->plane_pitch = (int8_t)nangle;
-                state->speed = (uint8_t)clamp_i16(nspeed, 0, (MAX_SPEED + MAX_THROTTLE));
             }
+
+            state->plane_pitch = (int8_t)nangle;
+            state->speed = (uint8_t)clamp_i16(nspeed, 0, (MAX_SPEED + MAX_THROTTLE));
         }
 
         dx = (int16_t)((state->speed * s_sintab[((uint8_t)state->plane_pitch + 4u) & 15u]) / 256);
@@ -421,7 +431,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             state->plane_y = grounded_y;
             state->plane_vy = 0;
 
-            if (flaps > 0 && state->speed >= MIN_SPEED) {
+            if (state->speed > 0) {
                 state->airborne = true;
             }
         } else if (stalled) {
@@ -438,25 +448,16 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             }
 
             if (plane_collides_with_terrain(state, state->plane_y)) {
-                if (state->plane_vy > 2 || state->speed > (MIN_SPEED + 2)) {
-                    state->crashed = true;
-                } else {
-                    state->airborne = false;
-                    state->stalled_high = false;
-                    state->landing = false;
-                    state->speed = 0;
-                    state->throttle = 0;
-                    state->plane_pitch = 0;
-                    state->plane_y = plane_top_y_for_ground(terrain_y);
-                    state->plane_vy = 0;
-                }
+                // Match Sopwith behavior: stalled ground contact is a crash.
+                state->crashed = true;
             }
         } else {
             state->plane_vy = (int8_t)(-dy);
             state->plane_y += state->plane_vy;
 
             if (plane_collides_with_terrain(state, state->plane_y)) {
-                if (state->plane_vy > 2 || state->speed > (MIN_SPEED + 2)) {
+                if (state->plane_vy > 2 || state->speed > (MIN_SPEED + 2) ||
+                    !can_touchdown_safely(state)) {
                     state->crashed = true;
                     state->landing = false;
                 } else {
@@ -523,4 +524,24 @@ void flight_update(const input_actions_t *actions)
 uint16_t flight_world_x(void)
 {
     return s_render_world_x;
+}
+
+int16_t flight_plane_y(void)
+{
+    return s_render_plane_y;
+}
+
+uint8_t flight_plane_pitch(void)
+{
+    return (uint8_t)s_flight.plane_pitch & 0x0Fu;
+}
+
+bool flight_plane_orient(void)
+{
+    return s_flight.plane_orient;
+}
+
+bool flight_is_crashed(void)
+{
+    return s_flight.crashed;
 }

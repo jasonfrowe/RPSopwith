@@ -15,6 +15,7 @@ typedef struct input_actions_s {
 
 void input_init(void);
 void input_poll(input_actions_t *actions);
+const input_actions_t *input_last_actions(void);
 void input_flight_init(void);
 void input_flight_update(void);
 

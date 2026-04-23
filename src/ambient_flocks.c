@@ -33,10 +33,11 @@ static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_wor
 void ambient_flocks_init(void)
 {
     uint8_t i;
+    uint8_t flock_base = (uint8_t)MAX_COMBAT_PROJECTILES;
 
     s_anim_tick = 0;
-    for (i = 0; i < MAX_PROJECTILES; ++i) {
-        sprite_mode5_set_projectile(i, -32, -32, 0, false);
+    for (i = 0; i < MAX_FLOCK_SPRITES; ++i) {
+        sprite_mode5_set_projectile((uint8_t)(flock_base + i), -32, -32, 0, false);
     }
 }
 
@@ -44,20 +45,17 @@ void ambient_flocks_update(uint16_t camera_world_x)
 {
     uint8_t i;
     uint8_t frame;
+    uint8_t flock_base = (uint8_t)MAX_COMBAT_PROJECTILES;
 
     s_anim_tick++;
     frame = ((s_anim_tick >> 4) & 1u) ? FLOCK_FRAME_B : FLOCK_FRAME_A;
 
-    for (i = 0; i < (uint8_t)(sizeof(s_flock_world_x) / sizeof(s_flock_world_x[0])); ++i) {
+    for (i = 0; i < MAX_FLOCK_SPRITES; ++i) {
         int16_t dx = world_delta_to_screen_x(s_flock_world_x[i], camera_world_x);
         int16_t screen_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
         int16_t screen_y = 1;
         bool visible = (screen_x > -PROJECTILE_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
-        sprite_mode5_set_projectile(i, screen_x, screen_y, frame, visible);
-    }
-
-    for (; i < MAX_PROJECTILES; ++i) {
-        sprite_mode5_set_projectile(i, -32, -32, 0, false);
+        sprite_mode5_set_projectile((uint8_t)(flock_base + i), screen_x, screen_y, frame, visible);
     }
 }
