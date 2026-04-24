@@ -82,6 +82,18 @@ static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_wor
     return dx;
 }
 
+static uint16_t wrap_world_x(int32_t x)
+{
+    int32_t world_width = (int32_t)(GROUND_WIDTH * 8);
+    int32_t wrapped = x % world_width;
+
+    if (wrapped < 0) {
+        wrapped += world_width;
+    }
+
+    return (uint16_t)wrapped;
+}
+
 void ground_targets_init(void)
 {
     uint8_t i;
@@ -122,7 +134,8 @@ void ground_targets_update(uint16_t camera_world_x)
     }
 }
 
-ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y)
+ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
+                                                  uint16_t *hit_world_x, int16_t *hit_center_y)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -146,6 +159,13 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
         if (dx >= -(TARGETS_SPRITE_SIZE_PX / 2) && dx <= (TARGETS_SPRITE_SIZE_PX / 2) &&
             proj_center_y >= top_y && proj_center_y <= bot_y) {
             s_target_destroyed[i] = true;
+
+            if (hit_world_x != 0) {
+                *hit_world_x = wrap_world_x((int32_t)s_targets[i].world_x + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+            if (hit_center_y != 0) {
+                *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
 
             if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
                 return GROUND_TARGET_HIT_EXPLOSIVE;
