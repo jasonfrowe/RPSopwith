@@ -15,6 +15,8 @@ typedef struct ground_target_s {
     uint8_t frame_standing;
     uint8_t frame_destroyed;
     int8_t y_offset_px;
+    uint16_t palette_ptr;
+    int16_t score_delta;
 } ground_target_t;
 
 // Strip frame layout from tools/assets/generate_targets.py:
@@ -31,36 +33,42 @@ enum {
     TARGET_VERTICAL_BIAS_PX = -1
 };
 
+enum {
+    SCORE_DELTA_BUILDING = 100,
+    SCORE_DELTA_EXPLOSIVE_BUILDING = 200,
+    SCORE_DELTA_OX = -200
+};
+
 static const ground_target_t s_targets[] = {
     // Left side of map
-    {191,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {284,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {409,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {539,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {685,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {807,  0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {934,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {191,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {284,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {409,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {539,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {685,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {807,  0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {934,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
 
     // Player 1 base
-    {1210, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
-    {1240, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {1376, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
-    {1440, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {1210, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_EXPLOSIVE_BUILDING},
+    {1240, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
+    {1376, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
+    {1440, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
 
     // Player 2 base
-    {1550, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {1608, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
-    {1750, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {1780, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
-    {2024, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {1550, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {1608, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
+    {1750, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {1780, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_EXPLOSIVE_BUILDING},
+    {2024, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
 
     // Right side of map
-    {2159, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {2279, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {2390, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {2549, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {2678, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {2763, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {2159, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2279, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2390, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2549, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2678, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2763, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
 };
 
 static uint8_t s_target_count;
@@ -109,7 +117,7 @@ void ground_targets_init(void)
     }
 
     for (i = 0; i < MAX_TARGETS; ++i) {
-        sprite_mode5_set_target(i, -32, -32, 0, false);
+        sprite_mode5_set_target(i, -32, -32, 0, TARGETS_PALETTE_ADDR, false);
     }
 }
 
@@ -126,16 +134,17 @@ void ground_targets_update(uint16_t camera_world_x)
         bool visible = (screen_x > -TARGETS_SPRITE_SIZE_PX) && (screen_x < SCREEN_WIDTH);
 
         uint8_t frame = s_target_destroyed[i] ? t->frame_destroyed : t->frame_standing;
-        sprite_mode5_set_target(i, screen_x, screen_y, frame, visible);
+        sprite_mode5_set_target(i, screen_x, screen_y, frame, t->palette_ptr, visible);
     }
 
     for (; i < MAX_TARGETS; ++i) {
-        sprite_mode5_set_target(i, -32, -32, 0, false);
+        sprite_mode5_set_target(i, -32, -32, 0, TARGETS_PALETTE_ADDR, false);
     }
 }
 
 ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
-                                                  uint16_t *hit_world_x, int16_t *hit_center_y)
+                                                  uint16_t *hit_world_x, int16_t *hit_center_y,
+                                                  int16_t *score_delta)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -170,6 +179,9 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
             if (hit_center_y != 0) {
                 *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
             }
+            if (score_delta != 0) {
+                *score_delta = s_targets[i].score_delta;
+            }
 
             if (s_targets[i].orient == 8u) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;
@@ -185,7 +197,8 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
 }
 
 ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
-                                                       uint16_t *hit_world_x, int16_t *hit_center_y)
+                                                       uint16_t *hit_world_x, int16_t *hit_center_y,
+                                                       int16_t *score_delta)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -218,6 +231,9 @@ ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, in
             if (hit_center_y != 0) {
                 *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
             }
+            if (score_delta != 0) {
+                *score_delta = s_targets[i].score_delta;
+            }
 
             if (s_targets[i].orient == 8u) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;
@@ -233,7 +249,8 @@ ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, in
 }
 
 ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
-                                                              uint16_t *hit_world_x, int16_t *hit_center_y)
+                                                              uint16_t *hit_world_x, int16_t *hit_center_y,
+                                                              int16_t *score_delta)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -268,6 +285,9 @@ ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_wor
             }
             if (hit_center_y != 0) {
                 *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+            if (score_delta != 0) {
+                *score_delta = s_targets[i].score_delta;
             }
             if (s_targets[i].orient == 8u) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;

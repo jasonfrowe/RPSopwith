@@ -472,6 +472,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 uint16_t impact_world_x;
                 uint16_t hit_world_x = 0;
                 int16_t hit_center_y = 0;
+                int16_t score_delta = 0;
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
                 if (p->gravity_ticks > 0) {
@@ -512,21 +513,22 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 impact_world_x = wrap_world_x((int32_t)p->world_x + 4);
                 int16_t terrain_y = flight_terrain_y_at(impact_world_x);
                 hit_target = ground_targets_check_hit(p->world_x, p->center_y,
-                                                      &hit_world_x, &hit_center_y);
+                                                      &hit_world_x, &hit_center_y,
+                                                      &score_delta);
                 hit_ground = p->center_y >= (terrain_y - 8);
 
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
                     spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
-                    text_mode1_score_explosive_building();
+                    text_mode1_add_score(score_delta);
                 } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
                     spawn_explosion_from(p, p->world_x, p->center_y);
-                    text_mode1_score_ox();
+                    text_mode1_add_score(score_delta);
                 } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
                     if (hit_target == GROUND_TARGET_HIT_NORMAL) {
                         p->vx = 0;
                         p->vy = 0;
                         spawn_explosion_from(p, hit_world_x, hit_center_y);
-                        text_mode1_score_building();
+                        text_mode1_add_score(score_delta);
                     } else {
                         flight_apply_bomb_crater(impact_world_x);
                         spawn_explosion_from(
@@ -542,6 +544,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 bool hit_ground;
                 uint16_t hit_world_x = 0;
                 int16_t hit_center_y = 0;
+                int16_t score_delta = 0;
 
                 if (p->life_ticks > 0) {
                     --p->life_ticks;
@@ -555,20 +558,21 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 
                 int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
                 hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
-                                                           &hit_world_x, &hit_center_y);
+                                                           &hit_world_x, &hit_center_y,
+                                                           &score_delta);
                 hit_ground = p->center_y >= terrain_y;
 
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
                     spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
-                    text_mode1_score_explosive_building();
+                    text_mode1_add_score(score_delta);
                 } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
                     p->active = false;
-                    text_mode1_score_ox();
+                    text_mode1_add_score(score_delta);
                 } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
                     p->vx = 0;
                     p->vy = 0;
                     spawn_explosion_from(p, hit_world_x, hit_center_y);
-                    text_mode1_score_building();
+                    text_mode1_add_score(score_delta);
                 } else if (hit_ground) {
                     p->active = false;
                 } else {
