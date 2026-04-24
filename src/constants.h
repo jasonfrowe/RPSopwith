@@ -14,7 +14,7 @@
 #define PLAYER_FRAME_SIZE       0x0080U            // 128 bytes per 16x16 4bpp frame
 #define PLAYER_FRAME_COUNT      48                 // 48 frames (Rotation and flipping and flying away)
 
-#define GROUND_DATA            (PLAYER_DATA + PLAYER_DATA_SIZE) // Address for terrain tile graphics
+#define GROUND_DATA            (PLAYER_DATA + PLAYER_DATA_SIZE) // Address for terrain tile map
 #define GROUND_DATA_SIZE        0x2BF2U            // 11250 bytes (375 x 30)
 #define GROUND_WIDTH            375                // Width of terrain tileset in pixels
 #define GROUND_HEIGHT           30                 // Height of terrain tileset in pixels
@@ -45,8 +45,15 @@
 #define TEXT_WIDTH_CHARS          40                 // Number of glyphs per row in text data
 #define TEXT_HEIGHT_CHARS         30                 // Number of glyph rows in text data
 
+#define HUD_MAP_DATA             (TEXT_DATA + TEXT_DATA_SIZE) // Address for HUD map 
+#define HUD_MAP_DATA_SIZE         0x04B0U            // 1200 bytes (40x30 tiles of 8x8)
+#define HUD_MAP_WIDTH_TILES       40                 // Width of HUD map in tiles
+#define HUD_MAP_HEIGHT_TILES      30                 // Height of HUD map in tiles
 
-#define SPRITE_DATA_END        (TEXT_DATA + TEXT_DATA_SIZE)
+#define HUD_TILES                (HUD_MAP_DATA + HUD_MAP_DATA_SIZE) // Address for HUD tile graphics
+#define HUD_TILES_SIZE            0x0D60U            // 3424 bytes (107 tiles of 8x8 at 4bpp)
+
+#define SPRITE_DATA_END        (HUD_TILES + HUD_TILES_SIZE)
 
 // Palette configurations
 #define PLAYER_PALETTE_ADDR      0xFC00  // 16-color palette (32 bytes, 0xFC00-0xFC1F)
@@ -61,6 +68,8 @@
 #define TEXT_PALETTE_SIZE        0x0020  // 32 bytes
 #define PLAYER_TARGETS_PALETTE_ADDR 0xFCA0  // 16-color palette for player-owned buildings (32 bytes, 0xFCA0-0xFCBF)
 #define PLAYER_TARGETS_PALETTE_SIZE 0x0020
+#define HUD_PALETTE_ADDR         0xFCC0  // 16-color palette for HUD tiles (32 bytes, 0xFCC0-0xFCDFF)
+#define HUD_PALETTE_SIZE         0x0020
 
 
 // OPL2 sound chip configuration

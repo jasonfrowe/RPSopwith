@@ -15,6 +15,8 @@ rp6502_asset(RPSopwith 0x11800 images/terrain_world_tilemap.bin)
 rp6502_asset(RPSopwith 0x143F2 images/terrain_tileset_4bpp.bin)
 rp6502_asset(RPSopwith 0x163F2 images/targets_strip_4bpp.bin)
 rp6502_asset(RPSopwith 0x172F2 images/projectiles_strip_4bpp.bin)
+rp6502_asset(RPSopwith 0x18AD2 images/HUD_map.bin)
+rp6502_asset(RPSopwith 0x18F82 images/HUD_tiles_4bpp.bin)
 
 rp6502_executable(RPSopwith 
     DATA file 
