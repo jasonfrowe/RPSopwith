@@ -27,10 +27,10 @@ typedef struct flight_state_s {
     bool plane_orient;
     bool stalled_high;
     bool landing;
-    bool prev_flip_held;
     bool prev_land_held;
+    uint8_t flip_repeat_timer;
     uint8_t stall_tick;
-    uint8_t fall_tick;
+    int8_t fall_countdown;
     int8_t fall_dx;
     int8_t fall_dy;
     bool wounded;
@@ -42,6 +42,8 @@ enum {
     WORLD_WIDTH_PX = (GROUND_WIDTH * 8),
     PLAYER_RUNWAY_SPAN_PX = 20,
     FLIGHT_FPS_DIV = 6,
+    FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
+    FLIP_REPEAT_INTERVAL_TICKS = 1,
     MIN_SPEED = 4,
     MAX_SPEED = 8,
     MAX_THROTTLE = 4
@@ -137,6 +139,27 @@ static uint8_t angle_step_toward(uint8_t angle, uint8_t target)
         return (uint8_t)((angle + 1u) & 0x0Fu);
     }
     return (uint8_t)((angle - 1u) & 0x0Fu);
+}
+
+static bool consume_flip_repeat(flight_state_t *state, bool flip_held)
+{
+    if (!flip_held) {
+        state->flip_repeat_timer = 0;
+        return false;
+    }
+
+    if (state->flip_repeat_timer == 0) {
+        state->flip_repeat_timer = FLIP_REPEAT_INITIAL_DELAY_TICKS;
+        return true;
+    }
+
+    --state->flip_repeat_timer;
+    if (state->flip_repeat_timer == 0) {
+        state->flip_repeat_timer = FLIP_REPEAT_INTERVAL_TICKS;
+        return true;
+    }
+
+    return false;
 }
 
 static uint8_t pitch_from_velocity(int8_t vx, int8_t vy)
@@ -286,7 +309,7 @@ static void start_falling_from_damage(flight_state_t *state)
     state->landing = false;
     state->airborne = true;
     state->stalled_high = false;
-    state->fall_tick = 0;
+    state->fall_countdown = 10;
     state->fall_dx = (int8_t)dx;
     state->fall_dy = (int8_t)(-dy);
 }
@@ -307,10 +330,10 @@ static void reset_plane_to_home(flight_state_t *state)
     state->plane_orient = false;
     state->stalled_high = false;
     state->landing = false;
-    state->prev_flip_held = false;
     state->prev_land_held = false;
+    state->flip_repeat_timer = 0;
     state->stall_tick = 0;
-    state->fall_tick = 0;
+    state->fall_countdown = 10;
     state->fall_dx = 0;
     state->fall_dy = 0;
     state->wounded = false;
@@ -364,23 +387,48 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
 
     if (!state->crashed) {
         if (state->falling) {
+            int8_t fall_flaps = 0;
+
+            if (consume_flip_repeat(state, actions->flip)) {
+                state->plane_orient = !state->plane_orient;
+            }
+
+            if (actions->down) {
+                fall_flaps = 1;
+            }
+            if (actions->up) {
+                fall_flaps = -1;
+            }
+
             state->world_x = (uint16_t)wrap_world_x((int32_t)state->world_x + state->fall_dx);
             state->plane_y = (int16_t)(state->plane_y + state->fall_dy);
             state->plane_vy = state->fall_dy;
             state->plane_pitch = (int8_t)pitch_from_velocity(state->fall_dx, state->fall_dy);
 
-            if (++state->fall_tick >= 5u) {
-                state->fall_tick = 0;
+            if ((state->fall_dy > 0) && (state->fall_dx != 0)) {
+                if (state->plane_orient ^ (state->fall_dx < 0)) {
+                    state->fall_countdown -= fall_flaps;
+                } else {
+                    state->fall_countdown += fall_flaps;
+                }
+            }
+
+            state->fall_countdown -= 2;
+
+            if (state->fall_countdown <= 0) {
                 if (state->fall_dy > 0) {
                     if (state->fall_dx < 0) {
                         ++state->fall_dx;
                     } else if (state->fall_dx > 0) {
                         --state->fall_dx;
+                    } else {
+                        state->plane_orient = !state->plane_orient;
                     }
                 }
                 if (state->fall_dy < 10) {
                     ++state->fall_dy;
                 }
+                state->fall_countdown = 10;
             }
 
             {
@@ -450,11 +498,10 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             state->landing = false;
         }
 
-        if (actions->flip && !state->prev_flip_held && state->airborne) {
-            state->plane_orient = !state->plane_orient;
-            state->landing = false;
+        if (consume_flip_repeat(state, actions->flip)) {
+                state->plane_orient = !state->plane_orient;
+                state->landing = false;
         }
-        state->prev_flip_held = actions->flip;
 
         if (actions->land && !state->prev_land_held && state->airborne) {
             state->landing = true;
