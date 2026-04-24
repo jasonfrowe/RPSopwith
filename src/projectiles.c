@@ -494,15 +494,8 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
-                if (ambient_flocks_scatter_at(p->world_x, p->center_y,
-                                              (uint8_t)(PROJECTILE_SPRITE_SIZE_PX / 2))) {
-                    spawn_explosion_from(p, p->world_x, p->center_y);
-                    continue;
-                }
-
-                if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
-                    continue;
-                }
+                (void)ambient_flocks_scatter_at(p->world_x, p->center_y,
+                                                (uint8_t)(PROJECTILE_SPRITE_SIZE_PX / 2));
 
                 if (bomb_hits_plane(p->world_x, p->center_y) ||
                     bomb_hits_plane(prev_world_x, prev_center_y) ||
