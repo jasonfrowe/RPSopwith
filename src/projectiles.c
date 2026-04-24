@@ -37,6 +37,7 @@ enum {
     SHOT_LIFE_TICKS = 10,
     SHOT_FIRE_COOLDOWN_TICKS = 1,
     BOMB_FIRE_COOLDOWN_TICKS = 10,
+    BOMB_PLANE_HIT_HALF_SIZE = 6,
     SMOKE_SPAWN_COOLDOWN_TICKS = 2,
     SMOKE_LIFE_TICKS = 10,
     BOMB_GRAVITY_TICKS = 5,
@@ -83,6 +84,25 @@ static uint16_t wrap_world_x(int32_t x)
     }
 
     return (uint16_t)wrapped;
+}
+
+static bool bomb_hits_plane(uint16_t bomb_world_x, int16_t bomb_center_y)
+{
+    int16_t plane_dx;
+    int16_t plane_dy;
+
+    if (flight_is_crashed()) {
+        return false;
+    }
+
+    plane_dx = world_delta_to_screen_x(bomb_world_x, flight_world_x_physics());
+    plane_dy = (int16_t)(bomb_center_y -
+                         (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2)));
+
+    return (plane_dx >= -BOMB_PLANE_HIT_HALF_SIZE &&
+            plane_dx <= BOMB_PLANE_HIT_HALF_SIZE &&
+            plane_dy >= -BOMB_PLANE_HIT_HALF_SIZE &&
+            plane_dy <= BOMB_PLANE_HIT_HALF_SIZE);
 }
 
 static void hide_all_combat_slots(void)
@@ -441,6 +461,8 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 continue;
             }
 
+            uint16_t prev_world_x = p->world_x;
+            int16_t prev_center_y = p->center_y;
             p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
             if (p->bomb) {
                 ground_target_hit_type_t hit_target;
@@ -468,6 +490,17 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
+                if (bomb_hits_plane(p->world_x, p->center_y) ||
+                    bomb_hits_plane(prev_world_x, prev_center_y) ||
+                    bomb_hits_plane(
+                        wrap_world_x((int32_t)prev_world_x +
+                                     world_delta_to_screen_x(p->world_x, prev_world_x) / 2),
+                        (int16_t)(prev_center_y + (p->center_y - prev_center_y) / 2))) {
+                    flight_apply_bomb_hit(p->world_x, p->center_y);
+                    spawn_explosion_from(p, p->world_x, p->center_y);
+                    continue;
+                }
+
                 impact_world_x = wrap_world_x((int32_t)p->world_x + 4);
                 int16_t terrain_y = flight_terrain_y_at(impact_world_x);
                 hit_target = ground_targets_check_hit(p->world_x, p->center_y,
@@ -477,7 +510,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
                     spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
                 } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
-                    p->active = false;
+                    spawn_explosion_from(p, p->world_x, p->center_y);
                 } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
                     if (hit_target == GROUND_TARGET_HIT_NORMAL) {
                         p->vx = 0;
@@ -571,11 +604,13 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 
 }
 
-void projectiles_spawn_crash_explosion(uint16_t world_x, int16_t center_y)
+void projectiles_spawn_crash_explosion(uint16_t world_x, int16_t center_y, bool big_explosion)
 {
     uint8_t angle;
+    uint8_t step = big_explosion ? EXPL_STEP_BIG : EXPL_STEP_NORMAL;
+    uint8_t speed = big_explosion ? EXPL_BIG_SPEED : EXPL_NORMAL_SPEED;
 
-    for (angle = 1u; angle <= 15u; angle = (uint8_t)(angle + EXPL_STEP_NORMAL)) {
+    for (angle = 1u; angle <= 15u; angle = (uint8_t)(angle + step)) {
         projectile_t *p = 0;
         uint8_t i;
 
@@ -589,6 +624,6 @@ void projectiles_spawn_crash_explosion(uint16_t world_x, int16_t center_y)
             break;
         }
 
-        init_explosion_fragment(p, world_x, center_y, 0, 0, angle, EXPL_NORMAL_SPEED);
+        init_explosion_fragment(p, world_x, center_y, 0, 0, angle, speed);
     }
 }

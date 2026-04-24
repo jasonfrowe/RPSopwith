@@ -232,8 +232,8 @@ ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, in
     return GROUND_TARGET_HIT_NONE;
 }
 
-bool ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
-                                          uint16_t *hit_world_x, int16_t *hit_center_y)
+ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
+                                                              uint16_t *hit_world_x, int16_t *hit_center_y)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -269,9 +269,15 @@ bool ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_
             if (hit_center_y != 0) {
                 *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
             }
-            return true;
+            if (s_targets[i].orient == 8u) {
+                return GROUND_TARGET_HIT_NO_EXPLOSION;
+            }
+            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+                return GROUND_TARGET_HIT_EXPLOSIVE;
+            }
+            return GROUND_TARGET_HIT_NORMAL;
         }
     }
 
-    return false;
+    return GROUND_TARGET_HIT_NONE;
 }
