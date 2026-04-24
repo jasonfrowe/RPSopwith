@@ -45,6 +45,13 @@ void sprite_mode5_init(void) {
         RIA.rw0 = player_palette[i] & 0xFF;
         RIA.rw0 = player_palette[i] >> 8;
     }
+
+    RIA.addr0 = ENEMY_PALETTE_ADDR;
+    RIA.step0 = 1;
+    for (int i = 0; i < 16; i++) {
+        RIA.rw0 = enemy_palette[i] & 0xFF;
+        RIA.rw0 = enemy_palette[i] >> 8;
+    }
 }
 
 void sprite_mode5_init_targets(void) {
