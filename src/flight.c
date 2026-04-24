@@ -35,6 +35,7 @@ typedef struct flight_state_s {
     int8_t fall_countdown;
     int8_t fall_dx;
     int8_t fall_dy;
+    uint8_t wounded_timeout_ticks;
     bool wounded;
     bool falling;
     bool crashed;
@@ -48,6 +49,7 @@ enum {
     FLIGHT_FPS_DIV = 6,
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
+    WOUNDED_TIMEOUT_TICKS_10HZ = 10,
     MIN_SPEED = 4,
     MAX_SPEED = 8,
     MAX_THROTTLE = 4
@@ -368,6 +370,7 @@ static void start_falling_from_damage(flight_state_t *state)
     state->fall_countdown = 10;
     state->fall_dx = (int8_t)dx;
     state->fall_dy = (int8_t)(-dy);
+    state->wounded_timeout_ticks = 0;
 }
 
 static void mark_plane_crash(flight_state_t *state,
@@ -412,6 +415,7 @@ static void reset_plane_to_home(flight_state_t *state)
     state->fall_countdown = 10;
     state->fall_dx = 0;
     state->fall_dy = 0;
+    state->wounded_timeout_ticks = 0;
     state->wounded = false;
     state->falling = false;
     state->crashed = false;
@@ -555,6 +559,18 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         }
 
         control_active = !(state->wounded && ((state->tick_count_10hz & 1u) != 0u));
+
+        if (state->wounded) {
+            if (state->wounded_timeout_ticks > 0u) {
+                --state->wounded_timeout_ticks;
+            }
+            if (state->wounded_timeout_ticks == 0u) {
+                start_falling_from_damage(state);
+                // Match Sopwith-style immediate transition behavior.
+                flight_tick_10hz(state, actions);
+                return;
+            }
+        }
 
         if (control_active && actions->left && state->throttle < MAX_THROTTLE) {
             state->throttle++;
@@ -843,6 +859,7 @@ void flight_apply_debris_hit(void)
 #if ENABLE_WOUNDED_STATE
     if (!s_flight.wounded) {
         s_flight.wounded = true;
+        s_flight.wounded_timeout_ticks = WOUNDED_TIMEOUT_TICKS_10HZ;
         return;
     }
 #endif

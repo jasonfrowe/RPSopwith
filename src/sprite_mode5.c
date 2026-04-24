@@ -8,6 +8,7 @@
 unsigned PLAYER_CONFIG;
 unsigned TARGETS_CONFIG;
 unsigned PROJECTILES_CONFIG;
+unsigned ENEMY_CONFIG;
 
 void sprite_mode5_init(void) {
     int16_t center_x = (int16_t)((SCREEN_WIDTH - PLAYER_SPRITE_SIZE_PX) / 2);
@@ -21,8 +22,19 @@ void sprite_mode5_init(void) {
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, xram_sprite_ptr, PLAYER_DATA);
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, palette_ptr, PLAYER_PALETTE_ADDR);
 
+    ENEMY_CONFIG = PLAYER_CONFIG + sizeof(vga_mode5_sprite_t); // Just after player config
+    for (uint8_t i = 0; i < MAX_ENEMIES; i++) {
+
+        unsigned ptr = ENEMY_CONFIG + (i * sizeof(vga_mode5_sprite_t));
+
+        xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, -32); // Start off-screen
+        xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, -32);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, xram_sprite_ptr, PLAYER_DATA);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, palette_ptr, ENEMY_PALETTE_ADDR);
+    }
+
     // Mode 5 args: MODE, OPTIONS, CONFIG, LENGTH, PLANE, BEGIN, END
-    if (xreg_vga_mode(5, 0x0A, PLAYER_CONFIG, 1, 2, 0, 0) < 0) {
+    if (xreg_vga_mode(5, 0x0A, PLAYER_CONFIG, 1 + MAX_ENEMIES, 2, 0, 0) < 0) {
         return;
     }
 

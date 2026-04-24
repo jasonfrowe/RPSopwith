@@ -33,6 +33,25 @@ static const uint16_t player_palette[16] = {
     0x0020,
 };
 
+static const uint16_t enemy_palette[16] = {
+    0x0000,
+    0xFDEE,
+    0x19EA,
+    0xFFFF,
+    0x0030,
+    0x0520,
+    0x57FF,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+};
+
 // Palette extracted from Sprites/targets_strip.png
 static const uint16_t targets_palette[16] = {
     0x0000,

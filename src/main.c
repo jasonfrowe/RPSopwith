@@ -87,7 +87,7 @@ static void enter_end_mode(void)
     s_game_mode = GAME_MODE_END;
     s_mode_timer_10hz = END_TIMEOUT_TICKS_10HZ;
     s_game_tick_div = 0;
-    text_mode1_put_string(END_TEXT_COL, END_TEXT_ROW, 0x0B, "THE END");
+    text_mode1_put_string(END_TEXT_COL, END_TEXT_ROW, 0x0D, "THE END");
 }
 
 static void enter_win_mode(void)

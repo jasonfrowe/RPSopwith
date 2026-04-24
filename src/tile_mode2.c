@@ -243,7 +243,7 @@ void tile_hud_init(void) {
 }
 
 void tile_mode2_init(void) {
-    TILE_GROUND_CONFIG = PLAYER_CONFIG + sizeof(vga_mode5_sprite_t); // Add after sprite config
+    TILE_GROUND_CONFIG = PLAYER_CONFIG + (1 + MAX_ENEMIES) * sizeof(vga_mode5_sprite_t); // Add after sprite config
 
     xram0_struct_set(TILE_GROUND_CONFIG, vga_mode2_config_t, x_wrap, true);
     xram0_struct_set(TILE_GROUND_CONFIG, vga_mode2_config_t, y_wrap, true);
