@@ -10,6 +10,7 @@
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 #include "flight.h"
+#include "text_mode1.h"
 
 static bool init_graphics(void)
 {
@@ -28,6 +29,7 @@ static bool init_graphics(void)
     projectiles_init();
     ambient_flocks_init();
     ambient_birds_init();
+    text_mode1_init();
 
     return true;
 }
@@ -80,6 +82,7 @@ int main(void)
             if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater,
                                                &big_explosion)) {
                 projectiles_spawn_crash_explosion(crash_wx, crash_cy, big_explosion);
+                text_mode1_score_crash();
                 if (apply_crater) {
                     flight_apply_bomb_crater(crash_wx);
                 }
