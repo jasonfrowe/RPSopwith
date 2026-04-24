@@ -167,6 +167,9 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
                 *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
             }
 
+            if (s_targets[i].orient == 8u) {
+                return GROUND_TARGET_HIT_NO_EXPLOSION;
+            }
             if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
                 return GROUND_TARGET_HIT_EXPLOSIVE;
             }

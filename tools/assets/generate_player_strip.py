@@ -3,7 +3,7 @@
 from pathlib import Path
 import re
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 BASE_FRAME_COUNT = 32
 HIT_FRAME_COUNT = 8
@@ -88,30 +88,6 @@ def blit_pixels(img: Image.Image, ox: int, pixels: list[list[int]]) -> None:
                 img.putpixel((ox + x, y), c)
 
 
-def find_nose(pixels: list[list[int]], facing_left: bool) -> tuple[int, int]:
-    coords = []
-    for y in range(SIZE):
-        for x in range(SIZE):
-            if pixels[y][x] != 0:
-                coords.append((x, y))
-
-    if not coords:
-        return 8, 8
-
-    if facing_left:
-        nose_x = min(x for x, _ in coords)
-    else:
-        nose_x = max(x for x, _ in coords)
-
-    nose_y_samples = [y for x, y in coords if x == nose_x]
-    if nose_y_samples:
-        nose_y = int(sum(nose_y_samples) / len(nose_y_samples))
-    else:
-        nose_y = 7
-
-    return nose_x, nose_y
-
-
 def transform_symbol(symbol: list[list[int]], rotations: int, mirror: bool) -> list[list[int]]:
     out = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
     for y in range(SIZE):
@@ -127,7 +103,6 @@ def transform_symbol(symbol: list[list[int]], rotations: int, mirror: bool) -> l
 
 def draw_base_frame(img: Image.Image, frame_index: int, base_symbols: list[list[list[int]]]) -> None:
     ox = frame_index * SIZE
-    draw = ImageDraw.Draw(img)
 
     # 0..15: normal orientation, 16..31: mirrored orientation.
     mirrored = frame_index >= 16
@@ -136,21 +111,6 @@ def draw_base_frame(img: Image.Image, frame_index: int, base_symbols: list[list[
     rotations = angle >> 2
     pixels = transform_symbol(base_symbols[symbol_index], rotations, mirrored)
     blit_pixels(img, ox, pixels)
-
-    prop_color = 6
-    facing_left = 4 <= angle <= 12
-    nose_x, nose_y = find_nose(pixels, facing_left)
-
-    if facing_left:
-        prop_x = nose_x - 1
-    else:
-        prop_x = nose_x + 1
-
-    prop_x = max(0, min(SIZE - 1, prop_x))
-
-    y0 = max(0, nose_y - 1)
-    y1 = min(SIZE - 1, nose_y + 1)
-    draw.line([(ox + prop_x, y0), (ox + prop_x, y1)], fill=prop_color)
 
 
 def draw_mirrored_pair_frames(
