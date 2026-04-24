@@ -31,5 +31,6 @@ target_sources(RPSopwith PRIVATE
     src/projectiles.c
     src/sprite_mode5.c
     src/tile_mode2.c
+    src/text_mode1.c
 )
 

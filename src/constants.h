@@ -38,9 +38,15 @@
 #define MAX_FLOCK_SPRITES          4                 // Reserved ambient flock sprite slots
 #define MAX_BIRD_SPRITES          12                 // Reserved ambient single-bird sprite slots
 #define MAX_SPLAT_SPRITES          2                 // Reserved bird-splat cue sprite slots
-#define MAX_COMBAT_PROJECTILES    (MAX_PROJECTILES - MAX_FLOCK_SPRITES - MAX_BIRD_SPRITES - MAX_SPLAT_SPRITES)
+#define MAX_COMBAT_PROJECTILES   (MAX_PROJECTILES - MAX_FLOCK_SPRITES - MAX_BIRD_SPRITES - MAX_SPLAT_SPRITES)
 
-#define SPRITE_DATA_END        (PROJECTILE_DATA + PROJECTILE_DATA_SIZE)
+#define TEXT_DATA                (PROJECTILE_DATA + PROJECTILE_DATA_SIZE) // Address for text glyph graphics (not used yet)
+#define TEXT_DATA_SIZE            0x0960U            // 2400 bytes (40x30 glyphs of 8x8 at 4bpp)
+#define TEXT_WIDTH_CHARS          40                 // Number of glyphs per row in text data
+#define TEXT_HEIGHT_CHARS         30                 // Number of glyph rows in text data
+
+
+#define SPRITE_DATA_END        (TEXT_DATA + TEXT_DATA_SIZE)
 
 // Palette configurations
 #define PLAYER_PALETTE_ADDR      0xFC00  // 16-color palette (32 bytes, 0xFC00-0xFC1F)
@@ -51,6 +57,9 @@
 #define TARGETS_PALETTE_SIZE     0x0020
 #define PROJECTILE_PALETTE_ADDR  0xFC60  // 16-color palette for projectiles (32 bytes, 0xFC60-0xFC7F)
 #define PROJECTILE_PALETTE_SIZE  0x0020
+#define TEXT_PALETTE_ADDR        0xFC80  // 16-color palette for text (32 bytes, 0xFC80-0xFC9F)
+#define TEXT_PALETTE_SIZE        0x0020  // 32 bytes
+
 
 // OPL2 sound chip configuration
 #define OPL_XRAM_ADDR   0xFE00  // Native RIA OPL2 register page
@@ -76,5 +85,6 @@ extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is 
 extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is stored, for updates
 extern unsigned TARGETS_CONFIG; // Address in XRAM where target sprites config is stored, for
 extern unsigned PROJECTILES_CONFIG; // Address in XRAM where projectile sprites config is stored, for updates
+extern unsigned TEXT_CONFIG; // Address in XRAM where text sprites config is stored, for updates
 
 #endif // CONSTANTS_H
