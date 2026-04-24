@@ -22,6 +22,7 @@ GROUND_TARGET_X = [
 TARGET_SYMBOL_WIDTH = 16
 TARGET_SYMBOL_HEIGHT = 16
 SOURCE_MAX_Y = 199
+MAX_PREBAKED_TILES = 224
 
 
 def parse_ground_samples(header_path: pathlib.Path) -> list[int]:
@@ -231,9 +232,9 @@ def main() -> int:
                 if tile_bytes in tile_index_by_bytes:
                     tile_index = tile_index_by_bytes[tile_bytes]
                 else:
-                    if len(tiles) >= 256:
+                    if len(tiles) >= MAX_PREBAKED_TILES:
                         print(
-                            f"error: unique terrain tiles exceeded 256 at column {tx}, row {ty} (need >255)",
+                            f"error: unique terrain tiles exceeded reserved prebaked limit {MAX_PREBAKED_TILES}",
                             file=sys.stderr,
                         )
                         return 1
@@ -262,7 +263,7 @@ def main() -> int:
     if args.tilemap_png is not None:
         write_tilemap_png(args.tilemap_png, bytes(tilemap), world_width_tiles, world_height_tiles)
 
-    print(f"Generated terrain tiles: {len(tiles)} / 256")
+    print(f"Generated terrain tiles: {len(tiles)} / {MAX_PREBAKED_TILES} prebaked (runtime pool reserved)")
     print(f"World tilemap size: {world_width_tiles}x{world_height_tiles} = {len(tilemap)} bytes")
     if args.tileset_png is not None:
         print(f"Tileset PNG: {args.tileset_png}")

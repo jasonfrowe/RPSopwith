@@ -565,3 +565,33 @@ int16_t flight_terrain_y_at(uint16_t world_x)
 {
     return (int16_t)terrain_height_at_world_x(world_x);
 }
+
+void flight_apply_bomb_crater(uint16_t impact_world_x)
+{
+    uint16_t tile_start;
+    uint8_t column_samples[8];
+    static const uint8_t crater_profile[8] = { 1, 2, 2, 3, 3, 2, 2, 1 };
+
+    if (!s_terrain_ready) {
+        terrain_init();
+    }
+
+    tile_start = (uint16_t)((impact_world_x % WORLD_WIDTH_PX) & 0xFFF8u);
+
+    for (uint8_t i = 0; i < 8u; ++i) {
+        uint16_t x = (uint16_t)((tile_start + i) % WORLD_WIDTH_PX);
+        uint8_t source_ground = s_original_ground[x];
+        uint8_t min_ground = (source_ground > 40u) ? (uint8_t)(source_ground - 20u) : 20u;
+        uint8_t max_crater_y = (uint8_t)(199u - min_ground);
+        uint16_t new_y = (uint16_t)(s_terrain_height[x] + crater_profile[i]);
+
+        if (new_y > max_crater_y) {
+            new_y = max_crater_y;
+        }
+
+        s_terrain_height[x] = (uint8_t)new_y;
+        column_samples[i] = s_terrain_height[x];
+    }
+
+    tile_mode2_update_ground_column(tile_start, column_samples);
+}

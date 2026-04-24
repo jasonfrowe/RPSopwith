@@ -366,6 +366,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
             if (p->bomb) {
                 ground_target_hit_type_t hit_target;
                 bool hit_ground;
+                uint16_t impact_world_x;
                 uint16_t hit_world_x = 0;
                 int16_t hit_center_y = 0;
 
@@ -388,7 +389,8 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
-                int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
+                impact_world_x = wrap_world_x((int32_t)p->world_x + 4);
+                int16_t terrain_y = flight_terrain_y_at(impact_world_x);
                 hit_target = ground_targets_check_hit(p->world_x, p->center_y,
                                                       &hit_world_x, &hit_center_y);
                 hit_ground = p->center_y >= (terrain_y - 8);
@@ -403,6 +405,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                         p->vy = 0;
                         spawn_explosion_from(p, hit_world_x, hit_center_y);
                     } else {
+                        flight_apply_bomb_crater(impact_world_x);
                         spawn_explosion_from(
                             p,
                             p->world_x,

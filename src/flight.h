@@ -14,5 +14,6 @@ uint8_t flight_plane_speed(void);
 bool flight_plane_orient(void);
 bool flight_is_crashed(void);
 int16_t flight_terrain_y_at(uint16_t world_x);
+void flight_apply_bomb_crater(uint16_t impact_world_x);
 
 #endif // FLIGHT_H

@@ -27,5 +27,6 @@ static const uint16_t tile_bg_palette[16] = {
 void tile_mode2_init(void);
 void tile_mode2_set_scroll_x(int16_t world_scroll_px);
 int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px);
+void tile_mode2_update_ground_column(uint16_t world_x_px, const uint8_t *column_samples);
 
 #endif // TILE_MODE2_H
