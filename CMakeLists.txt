@@ -26,6 +26,7 @@ rp6502_executable(RPSopwith
 target_sources(RPSopwith PRIVATE
     src/ambient_birds.c
     src/ambient_flocks.c
+    src/enemy_planes.c
     src/main.c
     src/input.c
     src/flight.c

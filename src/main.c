@@ -4,6 +4,7 @@
 #include "ambient_birds.h"
 #include "ambient_flocks.h"
 #include "constants.h"
+#include "enemy_planes.h"
 #include "ground_targets.h"
 #include "input.h"
 #include "projectiles.h"
@@ -27,6 +28,7 @@ static bool init_graphics(void)
     sprite_mode5_init_targets();
     sprite_mode5_init_projectiles();
     ground_targets_init();
+    enemy_planes_init();
     projectiles_init();
     ambient_flocks_init();
     ambient_birds_init();
@@ -69,6 +71,7 @@ static void reset_level(void)
 {
     tile_mode2_reset_ground_map();
     ground_targets_init();
+    enemy_planes_init();
     projectiles_init();
     ambient_flocks_init();
     ambient_birds_init();
@@ -117,6 +120,75 @@ static void update_win_animation_frame(void)
     set_player_frame(frame_index);
 }
 
+static void update_playing_mode(void)
+{
+    input_flight_update();
+
+    if (!flight_is_crashed()) {
+        int16_t plane_center_y = (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+        bool flock_hit = ambient_flocks_scatter_at(
+            flight_world_x_physics(),
+            plane_center_y,
+            (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+        bool bird_hit = ambient_birds_check_plane_hit(
+            flight_world_x_physics(),
+            plane_center_y,
+            (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+
+        if (flock_hit || bird_hit) {
+            flight_apply_debris_hit();
+            if (flock_hit) {
+                ambient_birds_spawn_splat(flight_world_x_physics(), plane_center_y);
+            }
+        }
+    }
+
+    {
+        uint16_t crash_wx = 0;
+        int16_t crash_cy = 0;
+        bool apply_crater = false;
+        bool big_explosion = false;
+        if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater,
+                                           &big_explosion)) {
+            projectiles_spawn_crash_explosion(crash_wx, crash_cy, big_explosion);
+            text_mode1_score_crash();
+            if (apply_crater) {
+                flight_apply_bomb_crater(crash_wx);
+            }
+        }
+    }
+
+    projectiles_update(flight_world_x(), input_last_actions());
+    enemy_planes_update(flight_world_x());
+    ground_targets_update(flight_world_x());
+    ambient_flocks_update(flight_world_x());
+    ambient_birds_update(flight_world_x());
+
+    if (flight_is_crashed() && !resources_can_respawn()) {
+        enter_end_mode();
+    } else if (!flight_is_crashed() && ground_targets_all_enemy_targets_destroyed()) {
+        enter_win_mode();
+    }
+}
+
+static void update_non_playing_mode(void)
+{
+    if (++s_game_tick_div >= GAME_TICK_DIV_10HZ) {
+        s_game_tick_div = 0;
+        if (s_mode_timer_10hz > 0u) {
+            --s_mode_timer_10hz;
+        }
+    }
+
+    if (s_game_mode == GAME_MODE_WIN) {
+        update_win_animation_frame();
+    }
+
+    if (s_mode_timer_10hz == 0u) {
+        reset_level();
+    }
+}
+
 uint8_t vsync_last = 0;
 
 int main(void)
@@ -137,67 +209,9 @@ int main(void)
         vsync_last = RIA.vsync;
 
         if (s_game_mode == GAME_MODE_PLAYING) {
-            input_flight_update();
-
-            if (!flight_is_crashed()) {
-                int16_t plane_center_y = (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
-                bool flock_hit = ambient_flocks_scatter_at(
-                    flight_world_x_physics(),
-                    plane_center_y,
-                    (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
-                bool bird_hit = ambient_birds_check_plane_hit(
-                    flight_world_x_physics(),
-                    plane_center_y,
-                    (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
-
-                if (flock_hit || bird_hit) {
-                    flight_apply_debris_hit();
-                    if (flock_hit) {
-                        ambient_birds_spawn_splat(flight_world_x_physics(), plane_center_y);
-                    }
-                }
-            }
-
-            {
-                uint16_t crash_wx = 0;
-                int16_t crash_cy = 0;
-                bool apply_crater = false;
-                bool big_explosion = false;
-                if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater,
-                                                   &big_explosion)) {
-                    projectiles_spawn_crash_explosion(crash_wx, crash_cy, big_explosion);
-                    text_mode1_score_crash();
-                    if (apply_crater) {
-                        flight_apply_bomb_crater(crash_wx);
-                    }
-                }
-            }
-
-            projectiles_update(flight_world_x(), input_last_actions());
-            ground_targets_update(flight_world_x());
-            ambient_flocks_update(flight_world_x());
-            ambient_birds_update(flight_world_x());
-
-            if (flight_is_crashed() && !resources_can_respawn()) {
-                enter_end_mode();
-            } else if (!flight_is_crashed() && ground_targets_all_enemy_targets_destroyed()) {
-                enter_win_mode();
-            }
+            update_playing_mode();
         } else {
-            if (++s_game_tick_div >= GAME_TICK_DIV_10HZ) {
-                s_game_tick_div = 0;
-                if (s_mode_timer_10hz > 0u) {
-                    --s_mode_timer_10hz;
-                }
-            }
-
-            if (s_game_mode == GAME_MODE_WIN) {
-                update_win_animation_frame();
-            }
-
-            if (s_mode_timer_10hz == 0u) {
-                reset_level();
-            }
+            update_non_playing_mode();
         }
 
     }
