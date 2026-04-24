@@ -183,3 +183,95 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
 
     return GROUND_TARGET_HIT_NONE;
 }
+
+ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
+                                                       uint16_t *hit_world_x, int16_t *hit_center_y)
+{
+    int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
+    int16_t half_world = (int16_t)(world_width / 2);
+
+    for (uint8_t i = 0; i < s_target_count; ++i) {
+        if (s_target_destroyed[i]) {
+            continue;
+        }
+
+        int16_t dx = (int16_t)shot_world_x - (int16_t)s_targets[i].world_x;
+        if (dx > half_world) {
+            dx -= world_width;
+        } else if (dx < -half_world) {
+            dx += world_width;
+        }
+
+        int16_t top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
+                                   s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        int16_t bot_y = (int16_t)(top_y + TARGETS_SPRITE_SIZE_PX - 1);
+
+        /* Shot sprite is a single lit pixel at the center of the 16x16 frame. */
+        if (dx >= 0 && dx <= (TARGETS_SPRITE_SIZE_PX - 1) &&
+            shot_center_y >= top_y &&
+            shot_center_y <= bot_y) {
+            s_target_destroyed[i] = true;
+
+            if (hit_world_x != 0) {
+                *hit_world_x = wrap_world_x((int32_t)s_targets[i].world_x + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+            if (hit_center_y != 0) {
+                *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+
+            if (s_targets[i].orient == 8u) {
+                return GROUND_TARGET_HIT_NO_EXPLOSION;
+            }
+            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+                return GROUND_TARGET_HIT_EXPLOSIVE;
+            }
+            return GROUND_TARGET_HIT_NORMAL;
+        }
+    }
+
+    return GROUND_TARGET_HIT_NONE;
+}
+
+bool ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
+                                          uint16_t *hit_world_x, int16_t *hit_center_y)
+{
+    int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
+    int16_t half_world = (int16_t)(world_width / 2);
+    int16_t plane_bot_y = (int16_t)(plane_top_y + PLAYER_SPRITE_SIZE_PX - 1);
+
+    for (uint8_t i = 0; i < s_target_count; ++i) {
+        if (s_target_destroyed[i]) {
+            continue;
+        }
+
+        int16_t dx = (int16_t)plane_world_x - (int16_t)s_targets[i].world_x;
+        if (dx > half_world) {
+            dx -= world_width;
+        } else if (dx < -half_world) {
+            dx += world_width;
+        }
+
+        int16_t top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
+                                   s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        int16_t bot_y = (int16_t)(top_y + TARGETS_SPRITE_SIZE_PX - 1);
+
+        /* AABB: plane world_x is center of 16px sprite; target world_x is left edge. */
+        if (dx >= -(PLAYER_SPRITE_SIZE_PX / 2) &&
+            dx <= (TARGETS_SPRITE_SIZE_PX - 1 + PLAYER_SPRITE_SIZE_PX / 2) &&
+            plane_top_y <= bot_y &&
+            plane_bot_y >= top_y) {
+            s_target_destroyed[i] = true;
+
+            if (hit_world_x != 0) {
+                *hit_world_x = wrap_world_x((int32_t)s_targets[i].world_x +
+                                            (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+            if (hit_center_y != 0) {
+                *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+            }
+            return true;
+        }
+    }
+
+    return false;
+}

@@ -50,6 +50,19 @@ int main(void)
         vsync_last = RIA.vsync;
 
         input_flight_update();
+
+        {
+            uint16_t crash_wx = 0;
+            int16_t crash_cy = 0;
+            bool apply_crater = false;
+            if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater)) {
+                projectiles_spawn_crash_explosion(crash_wx, crash_cy);
+                if (apply_crater) {
+                    flight_apply_bomb_crater(crash_wx);
+                }
+            }
+        }
+
         projectiles_update(flight_world_x(), input_last_actions());
         ground_targets_update(flight_world_x());
         ambient_flocks_update(flight_world_x());

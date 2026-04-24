@@ -5,6 +5,7 @@
 
 #include "constants.h"
 #include "flight.h"
+#include "ground_targets.h"
 #include "input.h"
 #include "original_ground_3000.h"
 #include "sprite_mode5.h"
@@ -29,6 +30,10 @@ typedef struct flight_state_s {
     bool prev_flip_held;
     bool prev_land_held;
     uint8_t stall_tick;
+    uint8_t fall_tick;
+    int8_t fall_dx;
+    int8_t fall_dy;
+    bool falling;
     bool crashed;
 } flight_state_t;
 
@@ -47,6 +52,11 @@ static flight_state_t s_flight;
 static uint8_t s_tick_div = 0;
 static uint16_t s_render_world_x;
 static int16_t s_render_plane_y;
+
+static bool s_crash_explosion_pending = false;
+static uint16_t s_crash_explosion_world_x;
+static int16_t s_crash_explosion_center_y;
+static bool s_crash_explosion_apply_crater;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -264,6 +274,10 @@ static void reset_plane_to_home(flight_state_t *state)
     state->prev_flip_held = false;
     state->prev_land_held = false;
     state->stall_tick = 0;
+    state->fall_tick = 0;
+    state->fall_dx = 0;
+    state->fall_dy = 0;
+    state->falling = false;
     state->crashed = false;
 }
 
@@ -311,6 +325,52 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
     state->prev_plane_y = state->plane_y;
 
     if (!state->crashed) {
+        if (state->falling) {
+            state->world_x = (uint16_t)wrap_world_x((int32_t)state->world_x + state->fall_dx);
+            state->plane_y = (int16_t)(state->plane_y + state->fall_dy);
+            state->plane_vy = state->fall_dy;
+
+            if (++state->fall_tick >= 5u) {
+                state->fall_tick = 0;
+                if (state->fall_dy > 0) {
+                    if (state->fall_dx < 0) {
+                        ++state->fall_dx;
+                    } else if (state->fall_dx > 0) {
+                        --state->fall_dx;
+                    }
+                }
+                if (state->fall_dy < 10) {
+                    ++state->fall_dy;
+                }
+            }
+
+            {
+                uint16_t hit_wx = 0;
+                int16_t hit_cy = 0;
+                if (ground_targets_check_plane_collision(state->world_x, state->plane_y,
+                                                         &hit_wx, &hit_cy)) {
+                    s_crash_explosion_pending = true;
+                    s_crash_explosion_world_x = hit_wx;
+                    s_crash_explosion_center_y = hit_cy;
+                    s_crash_explosion_apply_crater = false;
+                }
+            }
+
+            if (plane_collides_with_terrain(state, state->plane_y)) {
+                state->falling = false;
+                state->crashed = true;
+                state->landing = false;
+                s_crash_explosion_pending = true;
+                s_crash_explosion_world_x = state->world_x;
+                s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
+                s_crash_explosion_apply_crater = true;
+            }
+
+            state->plane_bank = 0;
+            bank_target = 0;
+            goto finalize_tick;
+        }
+
         if (state->airborne && !state->stalled_high && state->plane_y <= stall_enter_y) {
             enter_stall_state(state);
             // Match Sopwith's immediate re-evaluation after entering stall.
@@ -426,6 +486,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
 
             if (state->speed > 0 && plane_collides_with_terrain(state, grounded_y)) {
                 state->crashed = true;
+                /* Runway crash at low speed — no big explosion */
             }
 
             state->plane_y = grounded_y;
@@ -448,8 +509,11 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             }
 
             if (plane_collides_with_terrain(state, state->plane_y)) {
-                // Match Sopwith behavior: stalled ground contact is a crash.
                 state->crashed = true;
+                s_crash_explosion_pending = true;
+                s_crash_explosion_world_x = state->world_x;
+                s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
+                s_crash_explosion_apply_crater = true;
             }
         } else {
             state->plane_vy = (int8_t)(-dy);
@@ -460,6 +524,10 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                     !can_touchdown_safely(state)) {
                     state->crashed = true;
                     state->landing = false;
+                    s_crash_explosion_pending = true;
+                    s_crash_explosion_world_x = state->world_x;
+                    s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
+                    s_crash_explosion_apply_crater = true;
                 } else {
                     state->airborne = false;
                     state->landing = false;
@@ -468,6 +536,27 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                     state->plane_pitch = 0;
                     state->plane_y = plane_top_y_for_ground(terrain_y);
                     state->plane_vy = 0;
+                }
+            }
+
+            /* Check collision with standing ground targets (buildings, tanks, etc.) */
+            if (!state->crashed) {
+                uint16_t hit_wx = 0;
+                int16_t hit_cy = 0;
+                if (ground_targets_check_plane_collision(state->world_x, state->plane_y,
+                                                         &hit_wx, &hit_cy)) {
+                    s_crash_explosion_pending = true;
+                    s_crash_explosion_world_x = hit_wx;
+                    s_crash_explosion_center_y = hit_cy;
+                    s_crash_explosion_apply_crater = false;
+
+                    state->falling = true;
+                    state->landing = false;
+                    state->airborne = true;
+                    state->stalled_high = false;
+                    state->fall_tick = 0;
+                    state->fall_dx = dx;
+                    state->fall_dy = (int8_t)(-dy);
                 }
             }
         }
@@ -480,6 +569,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         bank_target = clamp_i8(bank_target, 0, 4);
     }
 
+finalize_tick:
     state->plane_x = clamp_i16(state->plane_x,
                                (int16_t)(SCREEN_WIDTH / 2u - 8),
                                (int16_t)(SCREEN_WIDTH / 2u + 8));
@@ -558,7 +648,26 @@ bool flight_plane_orient(void)
 
 bool flight_is_crashed(void)
 {
-    return s_flight.crashed;
+    return s_flight.crashed || s_flight.falling;
+}
+
+bool flight_consume_plane_explosion(uint16_t *world_x, int16_t *center_y,
+                                    bool *apply_crater)
+{
+    if (!s_crash_explosion_pending) {
+        return false;
+    }
+    s_crash_explosion_pending = false;
+    if (world_x != 0) {
+        *world_x = s_crash_explosion_world_x;
+    }
+    if (center_y != 0) {
+        *center_y = s_crash_explosion_center_y;
+    }
+    if (apply_crater != 0) {
+        *apply_crater = s_crash_explosion_apply_crater;
+    }
+    return true;
 }
 
 int16_t flight_terrain_y_at(uint16_t world_x)
