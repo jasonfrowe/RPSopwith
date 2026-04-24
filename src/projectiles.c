@@ -27,8 +27,10 @@ enum {
     DEBRIS_FRAME_COUNT = 8,
     EXPL_LIFE_TICKS = 3,
     EXPL_FALL_MIN_SPEED = 4,
-    EXPL_FRAGMENT_SPEED = 4,
-    EXPL_FRAGMENT_COUNT = 3,
+    EXPL_NORMAL_SPEED = 2,
+    EXPL_BIG_SPEED = 8,
+    EXPL_STEP_BIG = 1,
+    EXPL_STEP_NORMAL = 2,
     SHOT_SPEED = 10,
     SHOT_LIFE_TICKS = 10,
     SHOT_FIRE_COOLDOWN_TICKS = 1,
@@ -135,12 +137,13 @@ static uint16_t next_rand16(void)
 }
 
 static void init_explosion_fragment(projectile_t *p, uint16_t world_x, int16_t center_y,
-                                    int8_t base_vx, int8_t base_vy, uint8_t angle)
+                                    int8_t base_vx, int8_t base_vy, uint8_t angle,
+                                    uint8_t fragment_speed)
 {
     p->world_x = world_x;
     p->center_y = center_y;
-    p->vx = (int8_t)(projectile_dx_for_speed(angle, EXPL_FRAGMENT_SPEED) + (base_vx >> 2));
-    p->vy = (int8_t)(projectile_dy_for_speed(angle, EXPL_FRAGMENT_SPEED) + (base_vy >> 2));
+    p->vx = (int8_t)(projectile_dx_for_speed(angle, fragment_speed) + (base_vx >> 2));
+    p->vy = (int8_t)(projectile_dy_for_speed(angle, fragment_speed) + (base_vy >> 2));
     p->frame_index = (uint8_t)(DEBRIS_FRAME_BASE + ((next_rand16() >> 5) & 0x07u));
     p->life_ticks = EXPL_LIFE_TICKS;
     p->gravity_ticks = 0;
@@ -155,22 +158,65 @@ static void spawn_explosion_from(projectile_t *source)
     int16_t center_y = source->center_y;
     int8_t base_vx = source->vx;
     int8_t base_vy = source->vy;
-    uint8_t angle = (uint8_t)(next_rand16() & 0x0Fu);
-    uint8_t spawned = 0;
+    uint8_t step = EXPL_STEP_NORMAL;
+    uint8_t fragment_speed = EXPL_NORMAL_SPEED;
+    uint8_t angle;
+    bool first = true;
 
-    init_explosion_fragment(source, world_x, center_y, base_vx, base_vy, angle);
-    spawned = 1;
+    if ((next_rand16() & 0x07u) == 7u) {
+        fragment_speed = (uint8_t)(EXPL_NORMAL_SPEED * 2u);
+    }
 
-    for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES && spawned < EXPL_FRAGMENT_COUNT; ++i) {
-        projectile_t *p = &s_projectiles[i];
+    for (angle = 1u; angle <= 15u; angle = (uint8_t)(angle + step)) {
+        projectile_t *p = 0;
 
-        if (p->active) {
-            continue;
+        if (first) {
+            p = source;
+            first = false;
+        } else {
+            for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+                if (!s_projectiles[i].active) {
+                    p = &s_projectiles[i];
+                    break;
+                }
+            }
+            if (p == 0) {
+                break;
+            }
         }
 
-        angle = (uint8_t)(next_rand16() & 0x0Fu);
-        init_explosion_fragment(p, world_x, center_y, base_vx, base_vy, angle);
-        ++spawned;
+        init_explosion_fragment(p, world_x, center_y, base_vx, base_vy, angle, fragment_speed);
+    }
+}
+
+static void spawn_explosive_target_explosion(projectile_t *source)
+{
+    uint16_t world_x = source->world_x;
+    int16_t center_y = source->center_y;
+    int8_t base_vx = source->vx;
+    int8_t base_vy = source->vy;
+    uint8_t angle;
+    bool first = true;
+
+    for (angle = 1u; angle <= 15u; angle = (uint8_t)(angle + EXPL_STEP_BIG)) {
+        projectile_t *p = 0;
+
+        if (first) {
+            p = source;
+            first = false;
+        } else {
+            for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+                if (!s_projectiles[i].active) {
+                    p = &s_projectiles[i];
+                    break;
+                }
+            }
+            if (p == 0) {
+                break;
+            }
+        }
+
+        init_explosion_fragment(p, world_x, center_y, base_vx, base_vy, angle, EXPL_BIG_SPEED);
     }
 }
 
@@ -317,7 +363,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
 
                 terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                if (p->center_y >= (terrain_y - 8) ||
+                if (p->center_y >= terrain_y ||
                     p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
                     p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
@@ -327,7 +373,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 
             p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
             if (p->bomb) {
-                bool hit_target;
+                ground_target_hit_type_t hit_target;
                 bool hit_ground;
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
@@ -353,13 +399,15 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 hit_target = ground_targets_check_hit(p->world_x, p->center_y);
                 hit_ground = p->center_y >= (terrain_y - 8);
 
-                if (hit_target || hit_ground) {
+                if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+                    spawn_explosive_target_explosion(p);
+                } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
                     spawn_explosion_from(p);
                 } else if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
                 }
             } else {
-                bool hit_target;
+                ground_target_hit_type_t hit_target;
                 bool hit_ground;
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
@@ -368,7 +416,9 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 hit_target = ground_targets_check_hit(p->world_x, p->center_y);
                 hit_ground = p->center_y >= (terrain_y - 8);
 
-                if (hit_target) {
+                if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+                    spawn_explosive_target_explosion(p);
+                } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
                     spawn_explosion_from(p);
                 } else if (hit_ground) {
                     p->active = false;
