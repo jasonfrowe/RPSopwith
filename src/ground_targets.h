@@ -17,7 +17,7 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
 												  uint16_t *hit_world_x, int16_t *hit_center_y);
 ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
 													   uint16_t *hit_world_x, int16_t *hit_center_y);
-bool ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
-                                          uint16_t *hit_world_x, int16_t *hit_center_y);
+ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_world_x, int16_t plane_top_y,
+															  uint16_t *hit_world_x, int16_t *hit_center_y);
 
 #endif // GROUND_TARGETS_H

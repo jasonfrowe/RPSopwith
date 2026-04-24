@@ -16,8 +16,10 @@ bool flight_is_crashed(void);
 bool flight_is_wounded(void);
 bool flight_is_falling(void);
 void flight_apply_debris_hit(void);
+void flight_apply_bomb_hit(uint16_t impact_world_x, int16_t impact_center_y);
 bool flight_consume_plane_explosion(uint16_t *world_x, int16_t *center_y,
-									bool *apply_crater);
+									bool *apply_crater,
+									bool *big_explosion);
 int16_t flight_terrain_y_at(uint16_t world_x);
 void flight_apply_bomb_crater(uint16_t impact_world_x);
 

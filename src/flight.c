@@ -58,6 +58,7 @@ static bool s_crash_explosion_pending = false;
 static uint16_t s_crash_explosion_world_x;
 static int16_t s_crash_explosion_center_y;
 static bool s_crash_explosion_apply_crater;
+static bool s_crash_explosion_big;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -385,12 +386,15 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             {
                 uint16_t hit_wx = 0;
                 int16_t hit_cy = 0;
-                if (ground_targets_check_plane_collision(state->world_x, state->plane_y,
-                                                         &hit_wx, &hit_cy)) {
+                ground_target_hit_type_t hit_type =
+                    ground_targets_check_plane_collision(state->world_x, state->plane_y,
+                                                         &hit_wx, &hit_cy);
+                if (hit_type != GROUND_TARGET_HIT_NONE) {
                     s_crash_explosion_pending = true;
                     s_crash_explosion_world_x = hit_wx;
                     s_crash_explosion_center_y = hit_cy;
                     s_crash_explosion_apply_crater = false;
+                    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
                 }
             }
 
@@ -402,6 +406,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                 s_crash_explosion_world_x = state->world_x;
                 s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
                 s_crash_explosion_apply_crater = true;
+                s_crash_explosion_big = false;
             }
 
             state->plane_bank = 0;
@@ -526,7 +531,13 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
 
             if (state->speed > 0 && plane_collides_with_terrain(state, grounded_y)) {
                 state->crashed = true;
-                /* Runway crash at low speed — no big explosion */
+                state->landing = false;
+                /* Runway crash at low speed: still show crash debris, but not big explosion. */
+                s_crash_explosion_pending = true;
+                s_crash_explosion_world_x = state->world_x;
+                s_crash_explosion_center_y = (int16_t)(grounded_y + PLAYER_SPRITE_SIZE_PX / 2);
+                s_crash_explosion_apply_crater = true;
+                s_crash_explosion_big = false;
             }
 
             state->plane_y = grounded_y;
@@ -554,6 +565,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                 s_crash_explosion_world_x = state->world_x;
                 s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
                 s_crash_explosion_apply_crater = true;
+                s_crash_explosion_big = false;
             }
         } else {
             state->plane_vy = (int8_t)(-dy);
@@ -568,6 +580,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                     s_crash_explosion_world_x = state->world_x;
                     s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
                     s_crash_explosion_apply_crater = true;
+                    s_crash_explosion_big = false;
                 } else {
                     state->airborne = false;
                     state->landing = false;
@@ -583,12 +596,15 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             if (!state->crashed) {
                 uint16_t hit_wx = 0;
                 int16_t hit_cy = 0;
-                if (ground_targets_check_plane_collision(state->world_x, state->plane_y,
-                                                         &hit_wx, &hit_cy)) {
+                ground_target_hit_type_t hit_type =
+                    ground_targets_check_plane_collision(state->world_x, state->plane_y,
+                                                         &hit_wx, &hit_cy);
+                if (hit_type != GROUND_TARGET_HIT_NONE) {
                     s_crash_explosion_pending = true;
                     s_crash_explosion_world_x = hit_wx;
                     s_crash_explosion_center_y = hit_cy;
                     s_crash_explosion_apply_crater = false;
+                    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
 
                     start_falling_from_damage(state);
                 }
@@ -710,11 +726,27 @@ void flight_apply_debris_hit(void)
     s_crash_explosion_world_x = s_flight.world_x;
     s_crash_explosion_center_y = (int16_t)(s_flight.plane_y + PLAYER_SPRITE_SIZE_PX / 2);
     s_crash_explosion_apply_crater = false;
+    s_crash_explosion_big = false;
+    start_falling_from_damage(&s_flight);
+}
+
+void flight_apply_bomb_hit(uint16_t impact_world_x, int16_t impact_center_y)
+{
+    if (s_flight.crashed || s_flight.falling || !s_flight.airborne) {
+        return;
+    }
+
+    s_crash_explosion_pending = true;
+    s_crash_explosion_world_x = impact_world_x;
+    s_crash_explosion_center_y = impact_center_y;
+    s_crash_explosion_apply_crater = false;
+    s_crash_explosion_big = false;
     start_falling_from_damage(&s_flight);
 }
 
 bool flight_consume_plane_explosion(uint16_t *world_x, int16_t *center_y,
-                                    bool *apply_crater)
+                                    bool *apply_crater,
+                                    bool *big_explosion)
 {
     if (!s_crash_explosion_pending) {
         return false;
@@ -728,6 +760,9 @@ bool flight_consume_plane_explosion(uint16_t *world_x, int16_t *center_y,
     }
     if (apply_crater != 0) {
         *apply_crater = s_crash_explosion_apply_crater;
+    }
+    if (big_explosion != 0) {
+        *big_explosion = s_crash_explosion_big;
     }
     return true;
 }

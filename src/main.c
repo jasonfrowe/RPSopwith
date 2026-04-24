@@ -55,8 +55,10 @@ int main(void)
             uint16_t crash_wx = 0;
             int16_t crash_cy = 0;
             bool apply_crater = false;
-            if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater)) {
-                projectiles_spawn_crash_explosion(crash_wx, crash_cy);
+            bool big_explosion = false;
+            if (flight_consume_plane_explosion(&crash_wx, &crash_cy, &apply_crater,
+                                               &big_explosion)) {
+                projectiles_spawn_crash_explosion(crash_wx, crash_cy, big_explosion);
                 if (apply_crater) {
                     flight_apply_bomb_crater(crash_wx);
                 }
