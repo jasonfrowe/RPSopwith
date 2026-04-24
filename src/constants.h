@@ -27,7 +27,7 @@
 #define TARGETS_SPRITE_SIZE_PX  16                 // Target sprite is 16x16 pixels
 #define TARGETS_FRAME_SIZE      0x0080U            // 128 bytes per 16x16 4bpp frame
 #define TARGETS_FRAME_COUNT     30                 // 30 frames different target graphics
-#define MAX_TARGETS             40                 // Max number of targets on screen
+#define MAX_TARGETS             24                 // 22 authored ground targets in the current level, plus 2 spare slots
 
 #define PROJECTILE_DATA          (TARGETS_DATA + TARGETS_DATA_SIZE) // Address for projectile sprite graphics (not used yet)
 #define PROJECTILE_DATA_SIZE      0x0E80U            // 3712 bytes (29 frames of 16x16 at 4bpp)
@@ -59,6 +59,8 @@
 #define PROJECTILE_PALETTE_SIZE  0x0020
 #define TEXT_PALETTE_ADDR        0xFC80  // 16-color palette for text (32 bytes, 0xFC80-0xFC9F)
 #define TEXT_PALETTE_SIZE        0x0020  // 32 bytes
+#define PLAYER_TARGETS_PALETTE_ADDR 0xFCA0  // 16-color palette for player-owned buildings (32 bytes, 0xFCA0-0xFCBF)
+#define PLAYER_TARGETS_PALETTE_SIZE 0x0020
 
 
 // OPL2 sound chip configuration

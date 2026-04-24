@@ -53,6 +53,25 @@ static const uint16_t targets_palette[16] = {
     0x0020,
 };
 
+static const uint16_t player_targets_palette[16] = {
+    0x0000,
+    0xFFFF,
+    0x02B5,
+    0xAD60,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+    0x0020,
+};
+
 // Palette extracted from Sprites/projectiles_strip.png
 static const uint16_t projectiles_palette[16] = {
     0x0000,
@@ -76,7 +95,8 @@ static const uint16_t projectiles_palette[16] = {
 void sprite_mode5_init(void);
 void sprite_mode5_set_position(int16_t x, int16_t y);
 void sprite_mode5_init_targets(void);
-void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index, bool visible);
+void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index,
+                             uint16_t palette_ptr, bool visible);
 void sprite_mode5_init_projectiles(void);
 void sprite_mode5_set_projectile(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index, bool visible);
 

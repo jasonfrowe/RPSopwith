@@ -9,6 +9,7 @@
 #include "input.h"
 #include "original_ground_3000.h"
 #include "sprite_mode5.h"
+#include "text_mode1.h"
 #include "tile_mode2.h"
 
 typedef struct flight_state_s {
@@ -488,10 +489,13 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             {
                 uint16_t hit_wx = 0;
                 int16_t hit_cy = 0;
+                int16_t score_delta = 0;
                 ground_target_hit_type_t hit_type =
                     ground_targets_check_plane_collision(state->world_x, state->plane_y,
-                                                         &hit_wx, &hit_cy);
+                                                         &hit_wx, &hit_cy,
+                                                         &score_delta);
                 if (hit_type != GROUND_TARGET_HIT_NONE) {
+                    text_mode1_add_score(score_delta);
                     s_crash_explosion_pending = true;
                     s_crash_explosion_world_x = hit_wx;
                     s_crash_explosion_center_y = hit_cy;
@@ -686,10 +690,13 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             if (!state->crashed) {
                 uint16_t hit_wx = 0;
                 int16_t hit_cy = 0;
+                int16_t score_delta = 0;
                 ground_target_hit_type_t hit_type =
                     ground_targets_check_plane_collision(state->world_x, state->plane_y,
-                                                         &hit_wx, &hit_cy);
+                                                         &hit_wx, &hit_cy,
+                                                         &score_delta);
                 if (hit_type != GROUND_TARGET_HIT_NONE) {
+                    text_mode1_add_score(score_delta);
                     s_crash_explosion_pending = true;
                     s_crash_explosion_world_x = hit_wx;
                     s_crash_explosion_center_y = hit_cy;

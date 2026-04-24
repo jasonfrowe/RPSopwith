@@ -59,6 +59,13 @@ void sprite_mode5_init_targets(void) {
         RIA.rw0 = targets_palette[i] & 0xFF;
         RIA.rw0 = targets_palette[i] >> 8;
     }
+
+    RIA.addr0 = PLAYER_TARGETS_PALETTE_ADDR;
+    RIA.step0 = 1;
+    for (int i = 0; i < 16; i++) {
+        RIA.rw0 = player_targets_palette[i] & 0xFF;
+        RIA.rw0 = player_targets_palette[i] >> 8;
+    }
 }
 
 void sprite_mode5_init_projectiles(void) {
@@ -94,7 +101,8 @@ void sprite_mode5_set_position(int16_t x, int16_t y)
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, y_pos_px, y);
 }
 
-void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index, bool visible)
+void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index,
+                             uint16_t palette_ptr, bool visible)
 {
     unsigned ptr;
     uint16_t sprite_ptr;
@@ -114,6 +122,7 @@ void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_i
     xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, x);
     xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, y);
     xram0_struct_set(ptr, vga_mode5_sprite_t, xram_sprite_ptr, sprite_ptr);
+    xram0_struct_set(ptr, vga_mode5_sprite_t, palette_ptr, palette_ptr);
 }
 
 void sprite_mode5_set_projectile(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index, bool visible)
