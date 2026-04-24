@@ -34,9 +34,11 @@
 #define PROJECTILE_SPRITE_SIZE_PX 16                // Projectile sprite is 16x16 pixels
 #define PROJECTILE_FRAME_SIZE     0x0080U            // 128 bytes per 16x16 4bpp frame
 #define PROJECTILE_FRAME_COUNT    29                 // 29 frames different projectile graphics
-#define MAX_PROJECTILES           32                 // Max number of projectiles on screen   
+#define MAX_PROJECTILES           42                 // Max number of projectiles on screen
 #define MAX_FLOCK_SPRITES          4                 // Reserved ambient flock sprite slots
-#define MAX_COMBAT_PROJECTILES    (MAX_PROJECTILES - MAX_FLOCK_SPRITES)
+#define MAX_BIRD_SPRITES          12                 // Reserved ambient single-bird sprite slots
+#define MAX_SPLAT_SPRITES          2                 // Reserved bird-splat cue sprite slots
+#define MAX_COMBAT_PROJECTILES    (MAX_PROJECTILES - MAX_FLOCK_SPRITES - MAX_BIRD_SPRITES - MAX_SPLAT_SPRITES)
 
 #define SPRITE_DATA_END        (PROJECTILE_DATA + PROJECTILE_DATA_SIZE)
 
