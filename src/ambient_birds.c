@@ -10,6 +10,8 @@ enum {
     BIRD_FRAME_A = 18u,
     BIRD_FRAME_B = 19u,
     BIRD_SPLAT_FRAME = 20u,
+    BIRD_HITBOX_WIDTH_PX = 3u,
+    BIRD_HITBOX_HEIGHT_PX = 2u,
     BIRD_MOVE_TICK_DIV = 3u,
     BIRD_TOP_LIMIT_Y = 8,
     BIRD_GROUND_CLEARANCE_Y = 6,
@@ -33,6 +35,28 @@ static uint16_t s_splat_world_x[MAX_SPLAT_SPRITES];
 static int16_t s_splat_world_y[MAX_SPLAT_SPRITES];
 static uint8_t s_splat_life[MAX_SPLAT_SPRITES];
 static uint8_t s_splat_alloc_cursor;
+
+static int16_t wrapped_world_dx(uint16_t target_x, uint16_t source_x);
+
+static bool bird_box_intersects(uint16_t obj_world_x, int16_t obj_center_y,
+                                uint8_t half_width_px, uint8_t half_height_px,
+                                const ambient_bird_t *bird)
+{
+    int16_t dx = wrapped_world_dx(obj_world_x, bird->world_x);
+
+    return dx >= -(int16_t)half_width_px &&
+           dx <= (int16_t)(BIRD_HITBOX_WIDTH_PX - 1u + half_width_px) &&
+           obj_center_y >= (int16_t)(bird->world_y - half_height_px) &&
+           obj_center_y <= (int16_t)(bird->world_y + BIRD_HITBOX_HEIGHT_PX - 1u + half_height_px);
+}
+
+static bool hit_bird(uint8_t index)
+{
+    ambient_birds_spawn_splat(s_birds[index].world_x,
+                              (int16_t)(s_birds[index].world_y + (BIRD_HITBOX_HEIGHT_PX / 2u)));
+    s_birds[index].active = false;
+    return true;
+}
 
 static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_world_x)
 {
@@ -199,21 +223,29 @@ bool ambient_birds_check_plane_hit(uint16_t world_x, int16_t center_y, uint8_t h
     uint8_t i;
 
     for (i = 0; i < MAX_BIRD_SPRITES; ++i) {
-        int16_t dx;
-
         if (!s_birds[i].active) {
             continue;
         }
 
-        dx = wrapped_world_dx(s_birds[i].world_x, world_x);
-        if (dx >= -(int16_t)half_size_px &&
-            dx <= (int16_t)(PROJECTILE_SPRITE_SIZE_PX - 1 + half_size_px) &&
-            center_y >= (int16_t)(s_birds[i].world_y - half_size_px) &&
-            center_y <= (int16_t)(s_birds[i].world_y + PROJECTILE_SPRITE_SIZE_PX - 1 + half_size_px)) {
-            s_birds[i].active = false;
-            ambient_birds_spawn_splat(s_birds[i].world_x,
-                                      (int16_t)(s_birds[i].world_y + (PROJECTILE_SPRITE_SIZE_PX / 2)));
-            return true;
+        if (bird_box_intersects(world_x, center_y, half_size_px, half_size_px, &s_birds[i])) {
+            return hit_bird(i);
+        }
+    }
+
+    return false;
+}
+
+bool ambient_birds_check_projectile_hit(uint16_t world_x, int16_t center_y)
+{
+    uint8_t i;
+
+    for (i = 0; i < MAX_BIRD_SPRITES; ++i) {
+        if (!s_birds[i].active) {
+            continue;
+        }
+
+        if (bird_box_intersects(world_x, center_y, 0u, 0u, &s_birds[i])) {
+            return hit_bird(i);
         }
     }
 

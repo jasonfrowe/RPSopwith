@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "ambient_birds.h"
 #include "constants.h"
 #include "ambient_flocks.h"
 #include "flight.h"
@@ -499,6 +500,10 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                     continue;
                 }
 
+                if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
+                    continue;
+                }
+
                 if (bomb_hits_plane(p->world_x, p->center_y) ||
                     bomb_hits_plane(prev_world_x, prev_center_y) ||
                     bomb_hits_plane(
@@ -555,6 +560,11 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
+
+                if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
+                    p->active = false;
+                    continue;
+                }
 
                 int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
                 hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
