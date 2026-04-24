@@ -156,8 +156,12 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
                                    s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
         int16_t bot_y = (int16_t)(top_y + TARGETS_SPRITE_SIZE_PX - 1);
 
-        if (dx >= -(TARGETS_SPRITE_SIZE_PX / 2) && dx <= (TARGETS_SPRITE_SIZE_PX / 2) &&
-            proj_center_y >= top_y && proj_center_y <= bot_y) {
+        /* AABB: bomb world_x is its center; target world_x is its left edge.
+         * Expand each axis by half the projectile sprite size. */
+        if (dx >= (int16_t)(1 - PROJECTILE_SPRITE_SIZE_PX / 2) &&
+            dx <= (int16_t)(TARGETS_SPRITE_SIZE_PX - 1 + PROJECTILE_SPRITE_SIZE_PX / 2) &&
+            proj_center_y >= (int16_t)(top_y - PROJECTILE_SPRITE_SIZE_PX / 2 + 1) &&
+            proj_center_y <= (int16_t)(bot_y + PROJECTILE_SPRITE_SIZE_PX / 2)) {
             s_target_destroyed[i] = true;
 
             if (hit_world_x != 0) {
