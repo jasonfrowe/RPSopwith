@@ -41,6 +41,8 @@ typedef struct flight_state_s {
 enum {
     WORLD_WIDTH_PX = (GROUND_WIDTH * 8),
     PLAYER_RUNWAY_SPAN_PX = 20,
+    PLAYER_HOME_APPROACH_OFFSET_PX = 16,
+    PLAYER_HOME_SNAP_RANGE_PX = 16,
     FLIGHT_FPS_DIV = 6,
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
@@ -91,6 +93,11 @@ static int16_t clamp_i16(int16_t v, int16_t lo, int16_t hi)
         return hi;
     }
     return v;
+}
+
+static int16_t abs_i16(int16_t v)
+{
+    return (v < 0) ? (int16_t)(-v) : v;
 }
 
 static int16_t wrapped_world_delta(uint16_t from_x, uint16_t to_x)
@@ -254,13 +261,60 @@ static int16_t plane_top_y_for_ground(int16_t ground_y)
     return (int16_t)(ground_y - (int16_t)PLAYER_GROUND_CONTACT_FROM_TOP_PX);
 }
 
-static bool can_touchdown_safely(const flight_state_t *state)
+static int16_t player_home_plane_top_y(void)
 {
-    uint8_t pitch = (uint8_t)state->plane_pitch & 0x0Fu;
-    bool near_level = (pitch <= 1u) || (pitch >= 15u);
+    return plane_top_y_for_ground(player_runway_ground_y());
+}
 
-    // Sopwith effectively requires a gentle, upright touchdown.
-    return (!state->plane_orient) && near_level;
+static int16_t player_home_approach_plane_top_y(void)
+{
+    return (int16_t)(player_home_plane_top_y() - PLAYER_HOME_APPROACH_OFFSET_PX);
+}
+
+static bool plane_is_in_home_snap_range(const flight_state_t *state)
+{
+    int16_t dx = wrapped_world_delta(state->world_x, PLAYER_START_WORLD_X_PX);
+    int16_t dy = (int16_t)(player_home_approach_plane_top_y() - state->plane_y);
+
+    return abs_i16(dx) < PLAYER_HOME_SNAP_RANGE_PX &&
+           abs_i16(dy) < PLAYER_HOME_SNAP_RANGE_PX;
+}
+
+static void update_autohome(flight_state_t *state, uint8_t *nangle, int16_t *nspeed)
+{
+    int16_t dx = wrapped_world_delta(state->world_x, PLAYER_START_WORLD_X_PX);
+    int16_t dy = (int16_t)(player_home_approach_plane_top_y() - state->plane_y);
+    int8_t desired_vx = 0;
+    int8_t desired_vy = 0;
+
+    if (dx < -8) {
+        desired_vx = -MAX_SPEED;
+    } else if (dx > 8) {
+        desired_vx = MAX_SPEED;
+    } else {
+        desired_vx = (int8_t)dx;
+    }
+
+    if (dy < -8) {
+        desired_vy = -MAX_SPEED;
+    } else if (dy > 8) {
+        desired_vy = MAX_SPEED;
+    } else {
+        desired_vy = (int8_t)dy;
+    }
+
+    if (desired_vx != 0) {
+        state->plane_orient = desired_vx < 0;
+    }
+
+    *nangle = angle_step_toward(*nangle, pitch_from_velocity(desired_vx, desired_vy));
+
+    if (*nspeed < (MIN_SPEED + 2)) {
+        *nspeed = (MIN_SPEED + 2);
+    }
+    if (state->throttle < MAX_THROTTLE) {
+        state->throttle = MAX_THROTTLE;
+    }
 }
 
 static bool plane_collides_with_terrain(const flight_state_t *state, int16_t plane_top_y)
@@ -319,8 +373,8 @@ static void reset_plane_to_home(flight_state_t *state)
     state->prev_world_x = PLAYER_START_WORLD_X_PX;
     state->world_x = PLAYER_START_WORLD_X_PX;
     state->plane_x = (int16_t)(SCREEN_WIDTH / 2u);
-    state->prev_plane_y = plane_top_y_for_ground(player_runway_ground_y());
-    state->plane_y = plane_top_y_for_ground(player_runway_ground_y());
+    state->prev_plane_y = player_home_plane_top_y();
+    state->plane_y = player_home_plane_top_y();
     state->plane_bank = 0;
     state->plane_pitch = 0;
     state->plane_vy = 0;
@@ -499,8 +553,8 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
         }
 
         if (consume_flip_repeat(state, actions->flip)) {
-                state->plane_orient = !state->plane_orient;
-                state->landing = false;
+            state->plane_orient = !state->plane_orient;
+            state->landing = false;
         }
 
         if (actions->land && !state->prev_land_held && state->airborne) {
@@ -517,18 +571,12 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             update = 1;
         }
 
+        nspeed = state->speed;
+
         if (state->landing && state->airborne) {
-            if ((state->tick_count_10hz & 0x3u) == 0u && state->throttle > 0) {
-                state->throttle--;
-            }
-            if (!state->plane_orient) {
-                nangle = angle_step_toward(nangle, 15u);
-            } else {
-                nangle = angle_step_toward(nangle, 9u);
-            }
+            update_autohome(state, &nangle, &nspeed);
             update = 1;
         }
-        nspeed = state->speed;
 
         if ((state->tick_count_10hz & 0x3u) == 0u) {
             if (state->airborne) {
@@ -618,25 +666,20 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             state->plane_vy = (int8_t)(-dy);
             state->plane_y += state->plane_vy;
 
+            if (state->landing && plane_is_in_home_snap_range(state)) {
+                reset_plane_to_home(state);
+                bank_target = 0;
+                goto finalize_tick;
+            }
+
             if (plane_collides_with_terrain(state, state->plane_y)) {
-                if (state->plane_vy > 2 || state->speed > (MIN_SPEED + 2) ||
-                    !can_touchdown_safely(state)) {
-                    state->crashed = true;
-                    state->landing = false;
-                    s_crash_explosion_pending = true;
-                    s_crash_explosion_world_x = state->world_x;
-                    s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
-                    s_crash_explosion_apply_crater = true;
-                    s_crash_explosion_big = false;
-                } else {
-                    state->airborne = false;
-                    state->landing = false;
-                    state->speed = 0;
-                    state->throttle = 0;
-                    state->plane_pitch = 0;
-                    state->plane_y = plane_top_y_for_ground(terrain_y);
-                    state->plane_vy = 0;
-                }
+                state->crashed = true;
+                state->landing = false;
+                s_crash_explosion_pending = true;
+                s_crash_explosion_world_x = state->world_x;
+                s_crash_explosion_center_y = (int16_t)(state->plane_y + PLAYER_SPRITE_SIZE_PX / 2);
+                s_crash_explosion_apply_crater = true;
+                s_crash_explosion_big = false;
             }
 
             /* Check collision with standing ground targets (buildings, tanks, etc.) */
