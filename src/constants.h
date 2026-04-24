@@ -13,6 +13,7 @@
 #define PLAYER_SPRITE_SIZE_PX   16                 // Player sprite is 16x16 pixels
 #define PLAYER_FRAME_SIZE       0x0080U            // 128 bytes per 16x16 4bpp frame
 #define PLAYER_FRAME_COUNT      48                 // 48 frames (Rotation and flipping and flying away)
+#define MAX_ENEMIES             2                  // Max number of enemy planes on screen
 
 #define GROUND_DATA            (PLAYER_DATA + PLAYER_DATA_SIZE) // Address for terrain tile map
 #define GROUND_DATA_SIZE        0x2BF2U            // 11250 bytes (375 x 30)
@@ -70,6 +71,8 @@
 #define PLAYER_TARGETS_PALETTE_SIZE 0x0020
 #define HUD_PALETTE_ADDR         0xFCC0  // 16-color palette for HUD tiles (32 bytes, 0xFCC0-0xFCDFF)
 #define HUD_PALETTE_SIZE         0x0020
+#define ENEMY_PALETTE_ADDR       0xFCE0  // 16-color palette for enemy planes (32 bytes, 0xFCE0-0xFCFF)
+#define ENEMY_PALETTE_SIZE       0x0020
 
 
 // OPL2 sound chip configuration
@@ -89,7 +92,7 @@
 // Gameplay features (toggles for classic vs enhanced behavior)
 // When enabled, hit planes enter a wounded state with reduced control before crashing.
 // When disabled, hit planes immediately enter uncontrolled falling (classic DOS behavior).
-#define ENABLE_WOUNDED_STATE               1
+#define ENABLE_WOUNDED_STATE               0
 
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
@@ -97,5 +100,6 @@ extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is s
 extern unsigned TARGETS_CONFIG; // Address in XRAM where target sprites config is stored, for
 extern unsigned PROJECTILES_CONFIG; // Address in XRAM where projectile sprites config is stored, for updates
 extern unsigned TEXT_CONFIG; // Address in XRAM where text sprites config is stored, for updates
+extern unsigned ENEMY_CONFIG; // Address in XRAM where enemy plane sprites config is stored, for updates
 
 #endif // CONSTANTS_H
