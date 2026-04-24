@@ -66,6 +66,11 @@
 #define PLAYER_FLIGHT_SPEED_X_PX           2
 #define PLAYER_FLIGHT_SPEED_Y_PX           2
 
+// Gameplay features (toggles for classic vs enhanced behavior)
+// When enabled, hit planes enter a wounded state with reduced control before crashing.
+// When disabled, hit planes immediately enter uncontrolled falling (classic DOS behavior).
+#define ENABLE_WOUNDED_STATE               1
+
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
 extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is stored, for updates

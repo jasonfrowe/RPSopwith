@@ -764,10 +764,12 @@ void flight_apply_debris_hit(void)
         return;
     }
 
+#if ENABLE_WOUNDED_STATE
     if (!s_flight.wounded) {
         s_flight.wounded = true;
         return;
     }
+#endif
 
     s_crash_explosion_pending = true;
     s_crash_explosion_world_x = s_flight.world_x;
