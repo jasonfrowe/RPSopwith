@@ -8,7 +8,7 @@
 enum {
     MAXROUNDS = 200,
     MAXBOMBS = 5,
-    MAXMISSILES = 5,
+    MAXMISSILES = 0,
     MAXFUEL = 9000,
     MAXCRASH = 5,
 

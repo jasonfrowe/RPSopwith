@@ -46,6 +46,7 @@ static const uint16_t hud_palette[16] = {
 
 void tile_mode2_init(void);
 void tile_mode2_set_scroll_x(int16_t world_scroll_px);
+void tile_mode2_reset_ground_map(void);
 int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px);
 void tile_mode2_update_ground_column(uint16_t world_x_px, const uint8_t *column_samples);
 void tile_hud_init(void);

@@ -105,6 +105,11 @@ void text_mode1_add_score(int16_t delta) {
     text_mode1_render_score();
 }
 
+void text_mode1_reset_score(void) {
+    s_score = 0;
+    text_mode1_render_score();
+}
+
 void text_mode1_score_building(void) {
     text_mode1_add_score(SCORE_BUILDING);
 }
