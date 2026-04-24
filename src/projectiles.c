@@ -431,8 +431,8 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 p->center_y = (int16_t)(p->center_y + p->vy);
 
                 int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                hit_target = ground_targets_check_hit(p->world_x, p->center_y,
-                                                      &hit_world_x, &hit_center_y);
+                hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
+                                                           &hit_world_x, &hit_center_y);
                 hit_ground = p->center_y >= terrain_y;
 
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
@@ -490,4 +490,26 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         sprite_mode5_set_projectile(i, sprite_x, sprite_y, p->frame_index, visible);
     }
 
+}
+
+void projectiles_spawn_crash_explosion(uint16_t world_x, int16_t center_y)
+{
+    uint8_t angle;
+
+    for (angle = 1u; angle <= 15u; angle = (uint8_t)(angle + EXPL_STEP_NORMAL)) {
+        projectile_t *p = 0;
+        uint8_t i;
+
+        for (i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+            if (!s_projectiles[i].active) {
+                p = &s_projectiles[i];
+                break;
+            }
+        }
+        if (p == 0) {
+            break;
+        }
+
+        init_explosion_fragment(p, world_x, center_y, 0, 0, angle, EXPL_NORMAL_SPEED);
+    }
 }
