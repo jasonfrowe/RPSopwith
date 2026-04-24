@@ -12,6 +12,7 @@ typedef enum ground_target_hit_type_e {
 
 void ground_targets_init(void);
 void ground_targets_update(uint16_t camera_world_x);
-ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y);
+ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
+												  uint16_t *hit_world_x, int16_t *hit_center_y);
 
 #endif // GROUND_TARGETS_H

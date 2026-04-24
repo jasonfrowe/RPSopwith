@@ -531,6 +531,16 @@ int16_t flight_plane_y(void)
     return s_render_plane_y;
 }
 
+uint16_t flight_world_x_physics(void)
+{
+    return s_flight.world_x;
+}
+
+int16_t flight_plane_y_physics(void)
+{
+    return s_flight.plane_y;
+}
+
 uint8_t flight_plane_pitch(void)
 {
     return (uint8_t)s_flight.plane_pitch & 0x0Fu;

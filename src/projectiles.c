@@ -27,7 +27,7 @@ enum {
     DEBRIS_FRAME_COUNT = 8,
     EXPL_LIFE_TICKS = 3,
     EXPL_FALL_MIN_SPEED = 4,
-    EXPL_NORMAL_SPEED = 2,
+    EXPL_NORMAL_SPEED = 4,
     EXPL_BIG_SPEED = 8,
     EXPL_STEP_BIG = 1,
     EXPL_STEP_NORMAL = 2,
@@ -140,10 +140,12 @@ static void init_explosion_fragment(projectile_t *p, uint16_t world_x, int16_t c
                                     int8_t base_vx, int8_t base_vy, uint8_t angle,
                                     uint8_t fragment_speed)
 {
-    p->world_x = world_x;
-    p->center_y = center_y;
     p->vx = (int8_t)(projectile_dx_for_speed(angle, fragment_speed) + (base_vx >> 2));
     p->vy = (int8_t)(projectile_dy_for_speed(angle, fragment_speed) + (base_vy >> 2));
+    // Sopwith initexpl places each fragment immediately offset by its initial velocity,
+    // which creates the instant circular pop instead of a tight center cluster.
+    p->world_x = wrap_world_x((int32_t)world_x + p->vx);
+    p->center_y = (int16_t)(center_y + p->vy);
     p->frame_index = (uint8_t)(DEBRIS_FRAME_BASE + ((next_rand16() >> 5) & 0x07u));
     p->life_ticks = EXPL_LIFE_TICKS;
     p->gravity_ticks = 0;
@@ -152,10 +154,9 @@ static void init_explosion_fragment(projectile_t *p, uint16_t world_x, int16_t c
     p->active = true;
 }
 
-static void spawn_explosion_from(projectile_t *source)
+static void spawn_explosion_from(projectile_t *source, uint16_t center_world_x, int16_t center_y)
 {
-    uint16_t world_x = source->world_x;
-    int16_t center_y = source->center_y;
+    uint16_t world_x = center_world_x;
     int8_t base_vx = source->vx;
     int8_t base_vy = source->vy;
     uint8_t step = EXPL_STEP_NORMAL;
@@ -189,12 +190,11 @@ static void spawn_explosion_from(projectile_t *source)
     }
 }
 
-static void spawn_explosive_target_explosion(projectile_t *source)
+static void spawn_explosive_target_explosion(projectile_t *source, uint16_t center_world_x, int16_t center_y)
 {
-    uint16_t world_x = source->world_x;
-    int16_t center_y = source->center_y;
-    int8_t base_vx = source->vx;
-    int8_t base_vy = source->vy;
+    uint16_t world_x = center_world_x;
+    int8_t base_vx = 0;
+    int8_t base_vy = 0;
     uint8_t angle;
     bool first = true;
 
@@ -224,7 +224,8 @@ static void spawn_shot(void)
 {
     uint8_t pitch = flight_plane_pitch();
     uint8_t shot_speed = (uint8_t)(flight_plane_speed() + SHOT_SPEED);
-    int16_t plane_center_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2));
+    uint16_t plane_world_x = flight_world_x();
+    int16_t plane_center_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2) - 1);
 
     for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
         projectile_t *p = &s_projectiles[i];
@@ -233,10 +234,11 @@ static void spawn_shot(void)
             continue;
         }
 
-        p->world_x = flight_world_x();
+        p->world_x = plane_world_x;
         p->center_y = plane_center_y;
         p->vx = projectile_dx_for_speed(pitch, shot_speed);
         p->vy = projectile_dy_for_speed(pitch, shot_speed);
+
         p->frame_index = SHOT_FRAME;
         p->bomb = false;
         p->explosion = false;
@@ -254,6 +256,7 @@ static void spawn_bomb(void)
     uint8_t release_angle = flight_plane_orient() ?
         (uint8_t)((pitch + 4u) & 0x0Fu) :
         (uint8_t)((pitch + 12u) & 0x0Fu);
+    uint16_t plane_world_x = flight_world_x();
     int16_t plane_center_y = (int16_t)(flight_plane_y() + (PLAYER_SPRITE_SIZE_PX / 2));
     int16_t release_dx = (int16_t)((10 * s_sintab[(release_angle + 4u) & 0x0Fu]) / 256);
     int16_t release_dy = (int16_t)(-((10 * s_sintab[release_angle]) / 256));
@@ -265,7 +268,7 @@ static void spawn_bomb(void)
             continue;
         }
 
-        p->world_x = wrap_world_x((int32_t)flight_world_x() + release_dx);
+        p->world_x = wrap_world_x((int32_t)plane_world_x + release_dx);
         p->center_y = (int16_t)(plane_center_y + release_dy);
         p->vx = projectile_dx_for_speed(pitch, plane_speed);
         p->vy = projectile_dy_for_speed(pitch, plane_speed);
@@ -363,7 +366,7 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 }
 
                 terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                if (p->center_y >= terrain_y ||
+                if (p->center_y >= (terrain_y + (PROJECTILE_SPRITE_SIZE_PX / 2)) ||
                     p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
                     p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
@@ -375,6 +378,8 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
             if (p->bomb) {
                 ground_target_hit_type_t hit_target;
                 bool hit_ground;
+                uint16_t hit_world_x = 0;
+                int16_t hit_center_y = 0;
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
                 if (p->gravity_ticks > 0) {
@@ -396,38 +401,57 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                 p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
 
                 int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                hit_target = ground_targets_check_hit(p->world_x, p->center_y);
+                hit_target = ground_targets_check_hit(p->world_x, p->center_y,
+                                                      &hit_world_x, &hit_center_y);
                 hit_ground = p->center_y >= (terrain_y - 8);
 
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
-                    spawn_explosive_target_explosion(p);
+                    spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
                 } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
-                    spawn_explosion_from(p);
+                    if (hit_target == GROUND_TARGET_HIT_NORMAL) {
+                        p->vx = 0;
+                        p->vy = 0;
+                        spawn_explosion_from(p, hit_world_x, hit_center_y);
+                    } else {
+                        spawn_explosion_from(
+                            p,
+                            p->world_x,
+                            (int16_t)(terrain_y - (PROJECTILE_SPRITE_SIZE_PX / 2)));
+                    }
                 } else if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
                 }
             } else {
                 ground_target_hit_type_t hit_target;
                 bool hit_ground;
+                uint16_t hit_world_x = 0;
+                int16_t hit_center_y = 0;
+
+                if (p->life_ticks > 0) {
+                    --p->life_ticks;
+                }
+                if (p->life_ticks == 0) {
+                    p->active = false;
+                    continue;
+                }
 
                 p->center_y = (int16_t)(p->center_y + p->vy);
 
                 int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                hit_target = ground_targets_check_hit(p->world_x, p->center_y);
+                hit_target = ground_targets_check_hit(p->world_x, p->center_y,
+                                                      &hit_world_x, &hit_center_y);
                 hit_ground = p->center_y >= (terrain_y - 8);
 
                 if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
-                    spawn_explosive_target_explosion(p);
+                    spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
                 } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
-                    spawn_explosion_from(p);
+                    p->vx = 0;
+                    p->vy = 0;
+                    spawn_explosion_from(p, hit_world_x, hit_center_y);
                 } else if (hit_ground) {
                     p->active = false;
                 } else {
-                    if (p->life_ticks > 0) {
-                        --p->life_ticks;
-                    }
-                    if (p->life_ticks == 0 ||
-                        p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
+                    if (p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
                         p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                         p->active = false;
                     }
