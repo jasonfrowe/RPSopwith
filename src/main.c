@@ -30,6 +30,7 @@ static bool init_graphics(void)
     ambient_flocks_init();
     ambient_birds_init();
     text_mode1_init();
+    tile_hud_init();
 
     return true;
 }
