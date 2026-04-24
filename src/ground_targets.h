@@ -6,6 +6,7 @@
 
 typedef enum ground_target_hit_type_e {
 	GROUND_TARGET_HIT_NONE = 0,
+	GROUND_TARGET_HIT_NO_EXPLOSION,
 	GROUND_TARGET_HIT_NORMAL,
 	GROUND_TARGET_HIT_EXPLOSIVE
 } ground_target_hit_type_t;
