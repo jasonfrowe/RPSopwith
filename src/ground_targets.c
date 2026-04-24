@@ -142,6 +142,22 @@ void ground_targets_update(uint16_t camera_world_x)
     }
 }
 
+bool ground_targets_all_enemy_targets_destroyed(void)
+{
+    uint8_t enemy_targets = 0u;
+
+    for (uint8_t i = 0; i < s_target_count; ++i) {
+        if (s_targets[i].score_delta > 0) {
+            ++enemy_targets;
+            if (!s_target_destroyed[i]) {
+                return false;
+            }
+        }
+    }
+
+    return enemy_targets > 0u;
+}
+
 ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
                                                   uint16_t *hit_world_x, int16_t *hit_center_y,
                                                   int16_t *score_delta)

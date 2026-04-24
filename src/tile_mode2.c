@@ -13,6 +13,8 @@ unsigned TILE_HUD_CONFIG;
 static uint8_t s_tileset_cache[256][32];
 static bool s_tileset_cached = false;
 static uint8_t s_next_dynamic_tile = 255u;
+static uint8_t s_ground_map_backup[GROUND_DATA_SIZE];
+static bool s_ground_map_backup_ready = false;
 
 enum {
     TILE_SKY = 0,
@@ -184,6 +186,32 @@ static void init_dynamic_pool_start(void)
     s_next_dynamic_tile = 255u;
 }
 
+static void backup_ground_map_if_needed(void)
+{
+    if (s_ground_map_backup_ready) {
+        return;
+    }
+
+    for (unsigned i = 0; i < GROUND_DATA_SIZE; ++i) {
+        s_ground_map_backup[i] = xram_read_u8(GROUND_DATA + i);
+    }
+
+    s_ground_map_backup_ready = true;
+}
+
+void tile_mode2_reset_ground_map(void)
+{
+    if (!s_ground_map_backup_ready) {
+        return;
+    }
+
+    for (unsigned i = 0; i < GROUND_DATA_SIZE; ++i) {
+        xram_write_u8(GROUND_DATA + i, s_ground_map_backup[i]);
+    }
+
+    init_dynamic_pool_start();
+}
+
 void tile_hud_init(void) {
     TILE_HUD_CONFIG = TEXT_CONFIG + sizeof(vga_mode1_config_t); // Add after text config
 
@@ -244,6 +272,7 @@ void tile_mode2_init(void) {
 
     ensure_tileset_cache();
     init_dynamic_pool_start();
+    backup_ground_map_if_needed();
 
     // Start at the player's home position so the terrain is correct on the first frame
     tile_mode2_set_scroll_x(PLAYER_START_WORLD_X_PX);
