@@ -11,6 +11,7 @@
 // TARGET types (orient 0..7) and OX.
 typedef struct ground_target_s {
     uint16_t world_x;
+    uint8_t orient;
     uint8_t frame_standing;
     uint8_t frame_destroyed;
     int8_t y_offset_px;
@@ -32,34 +33,34 @@ enum {
 
 static const ground_target_t s_targets[] = {
     // Left side of map
-    {191,  FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {284,  FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {409,  FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {539,  FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {685,  FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {807,  FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {934,  FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {191,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {284,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {409,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {539,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {685,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {807,  0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
+    {934,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
 
     // Player 1 base
-    {1210, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
-    {1240, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {1376, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
-    {1440, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {1210, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
+    {1240, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
+    {1376, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
+    {1440, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
 
     // Player 2 base
-    {1550, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {1608, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
-    {1750, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {1780, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
-    {2024, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {1550, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {1608, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0},
+    {1750, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
+    {1780, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0},
+    {2024, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
 
     // Right side of map
-    {2159, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
-    {2279, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {2390, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
-    {2549, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {2678, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
-    {2763, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {2159, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
+    {2279, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {2390, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0},
+    {2549, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
+    {2678, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0},
+    {2763, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0},
 };
 
 static uint8_t s_target_count;
@@ -121,7 +122,7 @@ void ground_targets_update(uint16_t camera_world_x)
     }
 }
 
-bool ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y)
+ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y)
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
@@ -145,9 +146,13 @@ bool ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y)
         if (dx >= -(TARGETS_SPRITE_SIZE_PX / 2) && dx <= (TARGETS_SPRITE_SIZE_PX / 2) &&
             proj_center_y >= top_y && proj_center_y <= bot_y) {
             s_target_destroyed[i] = true;
-            return true;
+
+            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+                return GROUND_TARGET_HIT_EXPLOSIVE;
+            }
+            return GROUND_TARGET_HIT_NORMAL;
         }
     }
 
-    return false;
+    return GROUND_TARGET_HIT_NONE;
 }
