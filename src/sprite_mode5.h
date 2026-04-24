@@ -35,10 +35,10 @@ static const uint16_t player_palette[16] = {
 
 static const uint16_t enemy_palette[16] = {
     0x0000,
-    0xF81F,
+    0xFDEE,
+    0x19EA,
+    0xF83F,
     0xFFFF,
-    0xFFFF,
-    0x0030,
     0x0520,
     0x57FF,
     0x0020,

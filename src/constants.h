@@ -13,7 +13,7 @@
 #define PLAYER_SPRITE_SIZE_PX   16                 // Player sprite is 16x16 pixels
 #define PLAYER_FRAME_SIZE       0x0080U            // 128 bytes per 16x16 4bpp frame
 #define PLAYER_FRAME_COUNT      48                 // 48 frames (Rotation and flipping and flying away)
-#define MAX_ENEMIES             2                  // Max number of enemy planes on screen
+#define MAX_ENEMIES             3                  // Original non-player plane homes: left, near-right, far-right
 
 #define GROUND_DATA            (PLAYER_DATA + PLAYER_DATA_SIZE) // Address for terrain tile map
 #define GROUND_DATA_SIZE        0x2BF2U            // 11250 bytes (375 x 30)
