@@ -7,6 +7,7 @@
 #include "ground_targets.h"
 #include "input.h"
 #include "projectiles.h"
+#include "resources.h"
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 #include "flight.h"
@@ -31,6 +32,7 @@ static bool init_graphics(void)
     ambient_birds_init();
     text_mode1_init();
     tile_hud_init();
+    resources_init();
 
     return true;
 }

@@ -88,7 +88,7 @@ void text_mode1_render_score(void) {
     // Bottom-left numeric score only (no label), matching Sopwith layout.
     // color byte: high nibble=bg index, low nibble=fg index
     uint8_t score_col = 0;
-    uint8_t score_row = (uint8_t)(TEXT_HEIGHT_CHARS - 1u);
+    uint8_t score_row = (uint8_t)(TEXT_HEIGHT_CHARS - 4u);
 
     // Clear the field first so old digits don't linger.
     text_mode1_put_string(0, score_row, 0x0B, "       ");

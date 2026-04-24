@@ -7,6 +7,7 @@
 #include "flight.h"
 #include "ground_targets.h"
 #include "projectiles.h"
+#include "resources.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
 
@@ -248,7 +249,7 @@ static void spawn_explosive_target_explosion(projectile_t *source, uint16_t cent
     }
 }
 
-static void spawn_shot(void)
+static bool spawn_shot(void)
 {
     uint8_t pitch = flight_plane_pitch();
     uint8_t shot_speed = (uint8_t)(flight_plane_speed() + SHOT_SPEED);
@@ -260,6 +261,10 @@ static void spawn_shot(void)
 
         if (p->active) {
             continue;
+        }
+
+        if (!resources_try_consume_bullet()) {
+            return false;
         }
 
         p->world_x = plane_world_x;
@@ -274,11 +279,13 @@ static void spawn_shot(void)
         p->life_ticks = SHOT_LIFE_TICKS;
         p->gravity_ticks = 0;
         p->active = true;
-        break;
+        return true;
     }
+
+    return false;
 }
 
-static void spawn_bomb(void)
+static bool spawn_bomb(void)
 {
     uint8_t pitch = flight_plane_pitch();
     uint8_t plane_speed = flight_plane_speed();
@@ -297,6 +304,10 @@ static void spawn_bomb(void)
             continue;
         }
 
+        if (!resources_try_consume_bomb()) {
+            return false;
+        }
+
         p->world_x = wrap_world_x((int32_t)plane_world_x + release_dx);
         p->center_y = (int16_t)(plane_center_y + release_dy);
         p->vx = projectile_dx_for_speed(pitch, plane_speed);
@@ -308,8 +319,10 @@ static void spawn_bomb(void)
         p->life_ticks = 0;
         p->gravity_ticks = BOMB_GRAVITY_TICKS;
         p->active = true;
-        break;
+        return true;
     }
+
+    return false;
 }
 
 static void spawn_smoke(void)
@@ -588,12 +601,14 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         }
 
         if (s_fire_latched && s_shot_cooldown == 0 && !flight_is_crashed()) {
-            spawn_shot();
-            s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
+            if (spawn_shot()) {
+                s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
+            }
         }
         if (s_bomb_latched && s_bomb_spawn_cooldown == 0 && !flight_is_crashed()) {
-            spawn_bomb();
-            s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
+            if (spawn_bomb()) {
+                s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
+            }
         }
 
         s_fire_latched = false;
