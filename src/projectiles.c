@@ -18,10 +18,12 @@ typedef struct projectile_s {
     bool active;
     bool bomb;
     bool explosion;
+    bool smoke;
 } projectile_t;
 
 enum {
     SHOT_FRAME = 0,
+    SMOKE_FRAME = 1,
     BOMB_FRAME_BASE = 2,
     DEBRIS_FRAME_BASE = 21,
     DEBRIS_FRAME_COUNT = 8,
@@ -35,6 +37,8 @@ enum {
     SHOT_LIFE_TICKS = 10,
     SHOT_FIRE_COOLDOWN_TICKS = 1,
     BOMB_FIRE_COOLDOWN_TICKS = 10,
+    SMOKE_SPAWN_COOLDOWN_TICKS = 2,
+    SMOKE_LIFE_TICKS = 10,
     BOMB_GRAVITY_TICKS = 5,
     BOMB_MAX_FALL_SPEED = 10,
     PROJECTILE_TICK_DIV = 6
@@ -46,6 +50,7 @@ static uint8_t s_bomb_spawn_cooldown;
 static uint8_t s_tick_div;
 static bool s_fire_latched;
 static bool s_bomb_latched;
+static uint8_t s_smoke_spawn_cooldown;
 static uint16_t s_expl_seed = 0x79B1u;
 
 static const int16_t s_sintab[16] = {
@@ -242,6 +247,7 @@ static void spawn_shot(void)
         p->frame_index = SHOT_FRAME;
         p->bomb = false;
         p->explosion = false;
+        p->smoke = false;
         p->life_ticks = SHOT_LIFE_TICKS;
         p->gravity_ticks = 0;
         p->active = true;
@@ -275,8 +281,40 @@ static void spawn_bomb(void)
         p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
         p->bomb = true;
         p->explosion = false;
+        p->smoke = false;
         p->life_ticks = 0;
         p->gravity_ticks = BOMB_GRAVITY_TICKS;
+        p->active = true;
+        break;
+    }
+}
+
+static void spawn_smoke(void)
+{
+    uint8_t pitch = flight_plane_pitch();
+    uint8_t speed = flight_plane_speed();
+    uint16_t plane_world_x = flight_world_x_physics();
+    int16_t plane_center_y = (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+    int8_t plane_vx = projectile_dx_for_speed(pitch, speed);
+    int8_t plane_vy = projectile_dy_for_speed(pitch, speed);
+
+    for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+        projectile_t *p = &s_projectiles[i];
+
+        if (p->active) {
+            continue;
+        }
+
+        p->world_x = wrap_world_x((int32_t)plane_world_x - (int32_t)plane_vx * 2);
+        p->center_y = (int16_t)(plane_center_y - plane_vy * 2);
+        p->vx = (int8_t)(plane_vx / 2);
+        p->vy = (int8_t)(plane_vy / 2 - 1);
+        p->frame_index = SMOKE_FRAME;
+        p->bomb = false;
+        p->explosion = false;
+        p->smoke = true;
+        p->life_ticks = SMOKE_LIFE_TICKS;
+        p->gravity_ticks = 0;
         p->active = true;
         break;
     }
@@ -293,6 +331,7 @@ void projectiles_init(void)
     s_tick_div = 0;
     s_fire_latched = false;
     s_bomb_latched = false;
+    s_smoke_spawn_cooldown = 0;
     hide_all_combat_slots();
 }
 
@@ -322,6 +361,14 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         if (s_bomb_spawn_cooldown > 0) {
             --s_bomb_spawn_cooldown;
         }
+        if (s_smoke_spawn_cooldown > 0) {
+            --s_smoke_spawn_cooldown;
+        }
+
+        if ((flight_is_wounded() || flight_is_falling()) && s_smoke_spawn_cooldown == 0) {
+            spawn_smoke();
+            s_smoke_spawn_cooldown = SMOKE_SPAWN_COOLDOWN_TICKS;
+        }
 
         for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
             projectile_t *p = &s_projectiles[i];
@@ -332,9 +379,27 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 
             if (p->explosion) {
                 int16_t terrain_y;
+                int16_t plane_dx;
+                int16_t plane_dy;
 
                 p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
                 p->center_y = (int16_t)(p->center_y + p->vy);
+
+                if (!flight_is_crashed()) {
+                    plane_dx = (int16_t)p->world_x - (int16_t)flight_world_x_physics();
+                    if (plane_dx > (int16_t)(GROUND_WIDTH * 4)) {
+                        plane_dx -= (int16_t)(GROUND_WIDTH * 8);
+                    } else if (plane_dx < (int16_t)(-GROUND_WIDTH * 4)) {
+                        plane_dx += (int16_t)(GROUND_WIDTH * 8);
+                    }
+                    plane_dy = (int16_t)p->center_y -
+                               (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+                    if (plane_dx >= -8 && plane_dx <= 7 && plane_dy >= -8 && plane_dy <= 7) {
+                        flight_apply_debris_hit();
+                        p->active = false;
+                        continue;
+                    }
+                }
 
                 if (p->life_ticks > 0) {
                     --p->life_ticks;
@@ -358,6 +423,20 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
                     p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
                     p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
                     p->active = false;
+                }
+                continue;
+            }
+
+            if (p->smoke) {
+                p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
+                p->center_y = (int16_t)(p->center_y + p->vy);
+
+                if (p->life_ticks > 0) {
+                    --p->life_ticks;
+                }
+                if (p->life_ticks == 0) {
+                    p->active = false;
+                    continue;
                 }
                 continue;
             }

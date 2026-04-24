@@ -33,6 +33,7 @@ typedef struct flight_state_s {
     uint8_t fall_tick;
     int8_t fall_dx;
     int8_t fall_dy;
+    bool wounded;
     bool falling;
     bool crashed;
 } flight_state_t;
@@ -135,6 +136,25 @@ static uint8_t angle_step_toward(uint8_t angle, uint8_t target)
         return (uint8_t)((angle + 1u) & 0x0Fu);
     }
     return (uint8_t)((angle - 1u) & 0x0Fu);
+}
+
+static uint8_t pitch_from_velocity(int8_t vx, int8_t vy)
+{
+    int16_t best_score = -32768;
+    uint8_t best_angle = 0;
+
+    for (uint8_t a = 0; a < 16u; ++a) {
+        int16_t dir_x = s_sintab[(a + 4u) & 0x0Fu];
+        int16_t dir_y = (int16_t)(-s_sintab[a]);
+        int16_t score = (int16_t)vx * dir_x + (int16_t)vy * dir_y;
+
+        if (score > best_score) {
+            best_score = score;
+            best_angle = a;
+        }
+    }
+
+    return best_angle;
 }
 
 static uint8_t player_frame_index_for_state(const flight_state_t *state)
@@ -255,6 +275,21 @@ static void enter_stall_state(flight_state_t *state)
     state->stall_tick = 6;
 }
 
+static void start_falling_from_damage(flight_state_t *state)
+{
+    int16_t dx = (int16_t)((state->speed * s_sintab[((uint8_t)state->plane_pitch + 4u) & 15u]) / 256);
+    int16_t dy = (int16_t)((state->speed * s_sintab[(uint8_t)state->plane_pitch & 15u]) / 256);
+
+    state->falling = true;
+    state->wounded = false;
+    state->landing = false;
+    state->airborne = true;
+    state->stalled_high = false;
+    state->fall_tick = 0;
+    state->fall_dx = (int8_t)dx;
+    state->fall_dy = (int8_t)(-dy);
+}
+
 static void reset_plane_to_home(flight_state_t *state)
 {
     state->prev_world_x = PLAYER_START_WORLD_X_PX;
@@ -277,6 +312,7 @@ static void reset_plane_to_home(flight_state_t *state)
     state->fall_tick = 0;
     state->fall_dx = 0;
     state->fall_dy = 0;
+    state->wounded = false;
     state->falling = false;
     state->crashed = false;
 }
@@ -316,6 +352,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
     int16_t dy;
     int8_t update = 0;
     bool stalled;
+    bool control_active;
     const uint8_t stall_count = 6u;
     const uint8_t stall_recover_angle = 12u;
     const int16_t stall_enter_y = 0;
@@ -329,6 +366,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             state->world_x = (uint16_t)wrap_world_x((int32_t)state->world_x + state->fall_dx);
             state->plane_y = (int16_t)(state->plane_y + state->fall_dy);
             state->plane_vy = state->fall_dy;
+            state->plane_pitch = (int8_t)pitch_from_velocity(state->fall_dx, state->fall_dy);
 
             if (++state->fall_tick >= 5u) {
                 state->fall_tick = 0;
@@ -385,22 +423,24 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
             stalled = false;
         }
 
-        if (actions->left && state->throttle < MAX_THROTTLE) {
+        control_active = !(state->wounded && ((state->tick_count_10hz & 1u) != 0u));
+
+        if (control_active && actions->left && state->throttle < MAX_THROTTLE) {
             state->throttle++;
             state->landing = false;
             update = 1;
         }
-        if (actions->right && state->throttle > 0) {
+        if (control_active && actions->right && state->throttle > 0) {
             state->throttle--;
             state->landing = false;
             update = 1;
         }
 
-        if (actions->down) {
+        if (control_active && actions->down) {
             flaps = 1;
             state->landing = false;
         }
-        if (actions->up) {
+        if (control_active && actions->up) {
             flaps = -1;
             state->landing = false;
         }
@@ -550,13 +590,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                     s_crash_explosion_center_y = hit_cy;
                     s_crash_explosion_apply_crater = false;
 
-                    state->falling = true;
-                    state->landing = false;
-                    state->airborne = true;
-                    state->stalled_high = false;
-                    state->fall_tick = 0;
-                    state->fall_dx = dx;
-                    state->fall_dy = (int8_t)(-dy);
+                    start_falling_from_damage(state);
                 }
             }
         }
@@ -649,6 +683,34 @@ bool flight_plane_orient(void)
 bool flight_is_crashed(void)
 {
     return s_flight.crashed || s_flight.falling;
+}
+
+bool flight_is_wounded(void)
+{
+    return s_flight.wounded;
+}
+
+bool flight_is_falling(void)
+{
+    return s_flight.falling;
+}
+
+void flight_apply_debris_hit(void)
+{
+    if (s_flight.crashed || s_flight.falling || !s_flight.airborne) {
+        return;
+    }
+
+    if (!s_flight.wounded) {
+        s_flight.wounded = true;
+        return;
+    }
+
+    s_crash_explosion_pending = true;
+    s_crash_explosion_world_x = s_flight.world_x;
+    s_crash_explosion_center_y = (int16_t)(s_flight.plane_y + PLAYER_SPRITE_SIZE_PX / 2);
+    s_crash_explosion_apply_crater = false;
+    start_falling_from_damage(&s_flight);
 }
 
 bool flight_consume_plane_explosion(uint16_t *world_x, int16_t *center_y,
