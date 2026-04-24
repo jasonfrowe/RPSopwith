@@ -212,6 +212,8 @@ void tile_mode2_init(void) {
     ensure_tileset_cache();
     init_dynamic_pool_start();
 
+    // Start at the player's home position so the terrain is correct on the first frame
+    tile_mode2_set_scroll_x(PLAYER_START_WORLD_X_PX);
 }
 
 void tile_mode2_set_scroll_x(int16_t world_scroll_px)
