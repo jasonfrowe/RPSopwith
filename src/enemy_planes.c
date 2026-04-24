@@ -50,15 +50,19 @@ static int16_t home_plane_top_y(uint16_t spawn_world_x)
 
 void enemy_planes_init(void)
 {
-    // Original authored side defenders (swgames.c):
-    // left defender at x=588 orient=0, right defender at x=2456 orient=1.
+    // Original non-player plane homes from swgames.c in single-player/computer mode:
+    // x=588 (orient=0), x=1720 (orient=1), x=2456 (orient=1).
     s_enemies[0].world_x = 588u;
     s_enemies[0].plane_y = home_plane_top_y(s_enemies[0].world_x);
     s_enemies[0].orient = false;
 
-    s_enemies[1].world_x = 2456u;
+    s_enemies[1].world_x = 1720u;
     s_enemies[1].plane_y = home_plane_top_y(s_enemies[1].world_x);
     s_enemies[1].orient = true;
+
+    s_enemies[2].world_x = 2456u;
+    s_enemies[2].plane_y = home_plane_top_y(s_enemies[2].world_x);
+    s_enemies[2].orient = true;
 
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         sprite_mode5_set_enemy(i, -32, -32, 0, false);
@@ -74,7 +78,7 @@ void enemy_planes_update(uint16_t camera_world_x)
         int16_t sprite_y = s_enemies[i].plane_y;
         bool visible = (sprite_x > -PLAYER_SPRITE_SIZE_PX) && (sprite_x < SCREEN_WIDTH) &&
                        (sprite_y > -PLAYER_SPRITE_SIZE_PX) && (sprite_y < SCREEN_HEIGHT);
-        uint8_t frame_index = s_enemies[i].orient ? 16u : 0u;
+        uint8_t frame_index = s_enemies[i].orient ? 24u : 0u;
 
         sprite_mode5_set_enemy(i, sprite_x, sprite_y, frame_index, visible);
     }
