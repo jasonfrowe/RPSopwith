@@ -15,6 +15,9 @@ typedef struct enemy_plane_s {
     int16_t plane_y;
     int8_t vx;
     int8_t vy;
+    uint8_t angle;
+    uint8_t speed;
+    int8_t flaps;
     uint8_t launch_delay_10hz;
     bool airborne;
     bool orient;
@@ -25,14 +28,21 @@ enum {
     HOME_SPAN_PX = 20,
     GROUND_CONTACT_FROM_TOP_PX = PLAYER_GROUND_CONTACT_FROM_TOP_PX,
     ENEMY_FPS_DIV = 6,
-    ENEMY_SPEED_PX = 4,
+    MIN_SPEED = 4,
+    MAX_SPEED = 8,
     ENEMY_CRUISE_CLEARANCE_PX = 42,
     ENEMY_TERRITORY_MARGIN_PX = 16,
+    HOME_RANGE_PX = 16,
 };
 
 static enemy_plane_t s_enemies[MAX_ENEMIES];
 static uint8_t s_tick_div = 0;
 static uint16_t s_tick_10hz = 0;
+
+static const int16_t s_sintab[16] = {
+    0, 98, 181, 237, 256, 237, 181, 98,
+    0, -98, -181, -237, -256, -237, -181, -98
+};
 
 static int16_t wrap_world_x(int32_t x)
 {
@@ -60,6 +70,28 @@ static int16_t wrapped_world_delta(uint16_t from_x, uint16_t to_x)
 static uint16_t abs_i16(int16_t v)
 {
     return (v < 0) ? (uint16_t)(-v) : (uint16_t)v;
+}
+
+static int16_t clamp_i16(int16_t v, int16_t lo, int16_t hi)
+{
+    if (v < lo) {
+        return lo;
+    }
+    if (v > hi) {
+        return hi;
+    }
+    return v;
+}
+
+static uint8_t clamp_u8(uint8_t v, uint8_t lo, uint8_t hi)
+{
+    if (v < lo) {
+        return lo;
+    }
+    if (v > hi) {
+        return hi;
+    }
+    return v;
 }
 
 static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_world_x)
@@ -106,47 +138,180 @@ static uint8_t nearest_enemy_to_player_start(void)
     return best;
 }
 
+static void velocity_from_angle(uint8_t angle, uint8_t speed, int8_t *vx, int8_t *vy)
+{
+    int16_t dx = (int16_t)(((int16_t)speed * s_sintab[(angle + 4u) & 0x0Fu]) / 256);
+    int16_t dy = (int16_t)(((int16_t)speed * s_sintab[angle & 0x0Fu]) / 256);
+
+    *vx = (int8_t)dx;
+    *vy = (int8_t)(-dy);
+}
+
+static int16_t range_metric(int16_t x, int16_t y, int16_t ax, int16_t ay)
+{
+    int16_t dx = abs_i16((int16_t)(x - ax));
+    int16_t dy = abs_i16((int16_t)(y - ay));
+
+    // Lightweight weighted Manhattan metric to avoid expensive 32-bit math.
+    return (int16_t)(dx + dy + (dy >> 1));
+}
+
+static bool within_home_range(const enemy_plane_t *e)
+{
+    return abs_i16(wrapped_world_delta(e->world_x, e->home_x)) < HOME_RANGE_PX &&
+           abs_i16((int16_t)(e->plane_y - e->home_y)) < HOME_RANGE_PX;
+}
+
+static bool player_in_enemy_territory(const enemy_plane_t *e, uint16_t player_x)
+{
+    return (player_x >= e->territory_l) && (player_x <= e->territory_r);
+}
+
+static bool candidate_crash_risk(const enemy_plane_t *e, uint16_t nx, int16_t ny, int8_t vy)
+{
+    int16_t terrain_y = flight_terrain_y_at(nx);
+    int16_t alt = (int16_t)(terrain_y - (ny + (PLAYER_SPRITE_SIZE_PX / 2)));
+    int16_t lookahead = (within_home_range(e) ? 1 : 3);
+
+    if (alt > 50) {
+        return false;
+    }
+
+    return (int16_t)(alt - (vy * lookahead)) < 8;
+}
+
+static void enemy_aim_cruise(enemy_plane_t *e)
+{
+    static const int8_t cflaps[3] = {0, -1, 1};
+    uint16_t player_x = flight_world_x_physics();
+    int16_t player_y = flight_plane_y_physics();
+    int16_t ax;
+    int16_t ay;
+    int16_t best_r = 32767;
+    uint8_t best_i = 0;
+    bool found_safe = false;
+
+    if (player_in_enemy_territory(e, player_x)) {
+        ax = (int16_t)player_x;
+        ay = player_y;
+    } else {
+        int16_t home_sweep = ((s_tick_10hz & 0x1Fu) < 16u) ? 24 : -24;
+        ax = (int16_t)wrap_world_x((int32_t)e->home_x + home_sweep);
+        ay = (int16_t)(e->home_y - 28);
+    }
+
+    for (uint8_t i = 0; i < 3u; ++i) {
+        int8_t flap = cflaps[i];
+        uint8_t nangle = (uint8_t)((e->angle + (e->orient ? -flap : flap) + 16) & 0x0F);
+        uint8_t nspeed = clamp_u8((uint8_t)(e->speed + 1u), MIN_SPEED, MAX_SPEED);
+        int8_t cvx;
+        int8_t cvy;
+        uint16_t nx;
+        int16_t ny;
+        int16_t r;
+
+        velocity_from_angle(nangle, nspeed, &cvx, &cvy);
+        nx = (uint16_t)wrap_world_x((int32_t)e->world_x + cvx);
+        ny = (int16_t)(e->plane_y + cvy);
+        r = range_metric((int16_t)nx, ny, ax, ay);
+
+        if (!candidate_crash_risk(e, nx, ny, cvy)) {
+            if (!found_safe || r < best_r) {
+                found_safe = true;
+                best_r = r;
+                best_i = i;
+            }
+        }
+    }
+
+    if (!found_safe) {
+        int16_t best_alt = -32767;
+        best_i = 0;
+        for (uint8_t i = 0; i < 3u; ++i) {
+            int8_t flap = cflaps[i];
+            uint8_t nangle = (uint8_t)((e->angle + (e->orient ? -flap : flap) + 16) & 0x0F);
+            uint8_t nspeed = clamp_u8((uint8_t)(e->speed + 1u), MIN_SPEED, MAX_SPEED);
+            int8_t cvx;
+            int8_t cvy;
+            uint16_t nx;
+            int16_t ny;
+            int16_t alt;
+
+            velocity_from_angle(nangle, nspeed, &cvx, &cvy);
+            nx = (uint16_t)wrap_world_x((int32_t)e->world_x + cvx);
+            ny = (int16_t)(e->plane_y + cvy);
+            alt = (int16_t)(flight_terrain_y_at(nx) - (ny + (PLAYER_SPRITE_SIZE_PX / 2)));
+
+            if (alt > best_alt) {
+                best_alt = alt;
+                best_i = i;
+            }
+        }
+    }
+
+    e->flaps = cflaps[best_i];
+}
+
+static void enemy_move_tick_10hz(enemy_plane_t *e)
+{
+    uint8_t nangle = (uint8_t)((e->angle + (e->orient ? -e->flaps : e->flaps) + 16) & 0x0F);
+    uint8_t target_speed = (uint8_t)(MIN_SPEED + 2u);
+
+    if (!e->airborne) {
+        e->airborne = true;
+        e->speed = target_speed;
+    } else if (e->speed < target_speed) {
+        ++e->speed;
+    } else if (e->speed > target_speed) {
+        --e->speed;
+    }
+
+    e->angle = nangle;
+    velocity_from_angle(e->angle, e->speed, &e->vx, &e->vy);
+
+    e->world_x = (uint16_t)wrap_world_x((int32_t)e->world_x + e->vx);
+    e->plane_y = (int16_t)(e->plane_y + e->vy);
+
+    // Turn cleanly at territory edges so enemies don't stall there.
+    if (e->world_x <= (uint16_t)(e->territory_l + ENEMY_TERRITORY_MARGIN_PX)) {
+        e->world_x = e->territory_l;
+        e->orient = false;
+        e->angle = 0u;
+        e->flaps = 0;
+        velocity_from_angle(e->angle, e->speed, &e->vx, &e->vy);
+    } else if (e->world_x >= (uint16_t)(e->territory_r - ENEMY_TERRITORY_MARGIN_PX)) {
+        e->world_x = e->territory_r;
+        e->orient = true;
+        e->angle = 8u;
+        e->flaps = 0;
+        velocity_from_angle(e->angle, e->speed, &e->vx, &e->vy);
+    }
+
+    {
+        int16_t terrain_y = flight_terrain_y_at(e->world_x);
+        int16_t min_top = (int16_t)(terrain_y - GROUND_CONTACT_FROM_TOP_PX - ENEMY_CRUISE_CLEARANCE_PX);
+        if (e->plane_y > min_top) {
+            e->plane_y = min_top;
+        }
+    }
+
+    e->plane_y = clamp_i16(e->plane_y, -SCREEN_HEIGHT, SCREEN_HEIGHT - 1);
+}
+
 static void enemy_flight_tick_10hz(enemy_plane_t *e)
 {
-    int16_t terrain_y;
-    int16_t cruise_top_y;
-
     if (!e->airborne) {
         if (e->launch_delay_10hz > 0u) {
             --e->launch_delay_10hz;
             return;
         }
-        e->airborne = true;
-        e->vx = e->orient ? -ENEMY_SPEED_PX : ENEMY_SPEED_PX;
-        e->vy = -1;
+        e->speed = MIN_SPEED;
+        e->flaps = 0;
+        e->angle = e->orient ? 8u : 0u;
     }
 
-    if (e->world_x <= (uint16_t)(e->territory_l + ENEMY_TERRITORY_MARGIN_PX)) {
-        e->vx = ENEMY_SPEED_PX;
-        e->orient = false;
-    } else if (e->world_x >= (uint16_t)(e->territory_r - ENEMY_TERRITORY_MARGIN_PX)) {
-        e->vx = -ENEMY_SPEED_PX;
-        e->orient = true;
-    }
-
-    e->world_x = (uint16_t)wrap_world_x((int32_t)e->world_x + e->vx);
-
-    terrain_y = flight_terrain_y_at(e->world_x);
-    cruise_top_y = (int16_t)(terrain_y - GROUND_CONTACT_FROM_TOP_PX - ENEMY_CRUISE_CLEARANCE_PX);
-
-    // Keep a gentle bob so flight is visibly alive while staying terrain-safe.
-    if ((s_tick_10hz & 0x07u) < 4u) {
-        e->plane_y -= 1;
-    } else {
-        e->plane_y += 1;
-    }
-
-    if (e->plane_y > cruise_top_y) {
-        e->plane_y = cruise_top_y;
-    }
-    if (e->plane_y < (e->home_y - 64)) {
-        e->plane_y = (int16_t)(e->home_y - 64);
-    }
+    enemy_aim_cruise(e);
+    enemy_move_tick_10hz(e);
 }
 
 void enemy_planes_init(void)
@@ -163,6 +328,9 @@ void enemy_planes_init(void)
     s_enemies[0].plane_y = s_enemies[0].home_y;
     s_enemies[0].vx = 0;
     s_enemies[0].vy = 0;
+    s_enemies[0].angle = 0u;
+    s_enemies[0].speed = 0u;
+    s_enemies[0].flaps = 0;
     s_enemies[0].launch_delay_10hz = 20u;
     s_enemies[0].airborne = false;
     s_enemies[0].orient = false;
@@ -175,6 +343,9 @@ void enemy_planes_init(void)
     s_enemies[1].plane_y = s_enemies[1].home_y;
     s_enemies[1].vx = 0;
     s_enemies[1].vy = 0;
+    s_enemies[1].angle = 8u;
+    s_enemies[1].speed = 0u;
+    s_enemies[1].flaps = 0;
     s_enemies[1].launch_delay_10hz = 20u;
     s_enemies[1].airborne = false;
     s_enemies[1].orient = true;
@@ -187,6 +358,9 @@ void enemy_planes_init(void)
     s_enemies[2].plane_y = s_enemies[2].home_y;
     s_enemies[2].vx = 0;
     s_enemies[2].vy = 0;
+    s_enemies[2].angle = 8u;
+    s_enemies[2].speed = 0u;
+    s_enemies[2].flaps = 0;
     s_enemies[2].launch_delay_10hz = 20u;
     s_enemies[2].airborne = false;
     s_enemies[2].orient = true;
