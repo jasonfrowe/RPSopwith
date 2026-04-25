@@ -387,6 +387,19 @@ static void mark_plane_crash(flight_state_t *state,
     s_crash_explosion_big = big_explosion;
 }
 
+static void queue_target_hit_explosion(uint16_t hit_wx,
+                                       int16_t hit_cy,
+                                       int16_t score_delta,
+                                       ground_target_hit_type_t hit_type)
+{
+    text_mode1_add_score(score_delta);
+    s_crash_explosion_pending = true;
+    s_crash_explosion_world_x = hit_wx;
+    s_crash_explosion_center_y = hit_cy;
+    s_crash_explosion_apply_crater = false;
+    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
+}
+
 static void reset_plane_to_home(flight_state_t *state)
 {
     state->prev_world_x = PLAYER_START_WORLD_X_PX;
@@ -515,12 +528,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                                                          &hit_wx, &hit_cy,
                                                          &score_delta);
                 if (hit_type != GROUND_TARGET_HIT_NONE) {
-                    text_mode1_add_score(score_delta);
-                    s_crash_explosion_pending = true;
-                    s_crash_explosion_world_x = hit_wx;
-                    s_crash_explosion_center_y = hit_cy;
-                    s_crash_explosion_apply_crater = false;
-                    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
+                    queue_target_hit_explosion(hit_wx, hit_cy, score_delta, hit_type);
                 }
             }
 
@@ -721,12 +729,7 @@ static void flight_tick_10hz(flight_state_t *state, const input_actions_t *actio
                                                          &hit_wx, &hit_cy,
                                                          &score_delta);
                 if (hit_type != GROUND_TARGET_HIT_NONE) {
-                    text_mode1_add_score(score_delta);
-                    s_crash_explosion_pending = true;
-                    s_crash_explosion_world_x = hit_wx;
-                    s_crash_explosion_center_y = hit_cy;
-                    s_crash_explosion_apply_crater = false;
-                    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
+                    queue_target_hit_explosion(hit_wx, hit_cy, score_delta, hit_type);
 
                     start_falling_from_damage(state);
                 }
