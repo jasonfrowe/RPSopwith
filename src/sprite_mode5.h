@@ -6,10 +6,10 @@
 
 // Remove this when LLVM-MOS-SDK is updated for MODE-5.
 typedef struct {
-    int16_t x_pos_px;
-    int16_t y_pos_px;
-    uint16_t xram_sprite_ptr;
-    uint16_t palette_ptr;
+  int x_pos_px;
+  int y_pos_px;
+  unsigned xram_sprite_ptr;
+  unsigned palette_ptr;
 } vga_mode5_sprite_t;
 
 
