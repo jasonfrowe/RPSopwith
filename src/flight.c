@@ -131,13 +131,7 @@ static int8_t clamp_i8(int8_t value, int8_t min_value, int8_t max_value)
 
 static uint8_t wrap_angle16(int16_t angle)
 {
-    while (angle < 0) {
-        angle += 16;
-    }
-    while (angle >= 16) {
-        angle -= 16;
-    }
-    return (uint8_t)angle;
+    return (uint8_t)(angle & 0x0F);
 }
 
 static uint8_t angle_step_toward(uint8_t angle, uint8_t target)

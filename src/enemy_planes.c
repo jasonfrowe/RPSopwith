@@ -196,7 +196,7 @@ static void enemy_aim_cruise(enemy_plane_t *e)
         ay = player_y;
     } else {
         int16_t home_sweep = ((s_tick_10hz & 0x1Fu) < 16u) ? 24 : -24;
-        ax = (int16_t)wrap_world_x((int32_t)e->home_x + home_sweep);
+        ax = (int16_t)wrap_world_x((int16_t)e->home_x + home_sweep);
         ay = (int16_t)(e->home_y - 28);
     }
 

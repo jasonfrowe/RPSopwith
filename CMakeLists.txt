@@ -38,3 +38,14 @@ target_sources(RPSopwith PRIVATE
     src/text_mode1.c
 )
 
+# Safe size-focused flags for 6502: keep code/data in separate sections
+# and let the linker drop anything unreferenced.
+target_compile_options(RPSopwith PRIVATE
+    -ffunction-sections
+    -fdata-sections
+)
+
+target_link_options(RPSopwith PRIVATE
+    -Wl,--gc-sections
+)
+
