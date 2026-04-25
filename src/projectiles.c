@@ -371,250 +371,253 @@ void projectiles_init(void)
     hide_all_combat_slots();
 }
 
-void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
+static bool projectile_update_explosion(projectile_t *p)
 {
-    bool fire_held = false;
-    bool bomb_held = false;
+    int16_t terrain_y;
+    int16_t plane_dx;
+    int16_t plane_dy;
 
-    if (actions != 0) {
-        fire_held = actions->fire != 0;
-        bomb_held = actions->bomb != 0;
+    p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
+    p->center_y = (int16_t)(p->center_y + p->vy);
+
+    if (!flight_is_crashed()) {
+        plane_dx = (int16_t)p->world_x - (int16_t)flight_world_x_physics();
+        if (plane_dx > (int16_t)(GROUND_WIDTH * 4)) {
+            plane_dx -= (int16_t)(GROUND_WIDTH * 8);
+        } else if (plane_dx < (int16_t)(-GROUND_WIDTH * 4)) {
+            plane_dx += (int16_t)(GROUND_WIDTH * 8);
+        }
+        plane_dy = (int16_t)p->center_y -
+                    (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+        if (plane_dx >= -8 && plane_dx <= 7 && plane_dy >= -8 && plane_dy <= 7) {
+            flight_apply_debris_hit();
+            p->active = false;
+            return true;
+        }
     }
 
-    if (fire_held) {
-        s_fire_latched = true;
+    if (p->life_ticks > 0) {
+        --p->life_ticks;
     }
-    if (bomb_held) {
-        s_bomb_latched = true;
+    if (p->life_ticks == 0) {
+        if (p->vy < 0) {
+            if (p->vx < 0) {
+                ++p->vx;
+            } else if (p->vx > 0) {
+                --p->vx;
+            }
+        }
+        if (p->vy < EXPL_FALL_MIN_SPEED) {
+            ++p->vy;
+        }
+        p->life_ticks = EXPL_LIFE_TICKS;
     }
 
-    if (++s_tick_div >= PROJECTILE_TICK_DIV) {
-        s_tick_div = 0;
+    terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
+    if (p->center_y >= (terrain_y + (PROJECTILE_SPRITE_SIZE_PX / 2)) ||
+        p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
+        p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+        p->active = false;
+    }
 
-        if (s_shot_cooldown > 0) {
-            --s_shot_cooldown;
+    return true;
+}
+
+static bool projectile_update_smoke(projectile_t *p)
+{
+    p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
+    p->center_y = (int16_t)(p->center_y + p->vy);
+
+    if (p->life_ticks > 0) {
+        --p->life_ticks;
+    }
+    if (p->life_ticks == 0) {
+        p->active = false;
+    }
+
+    return true;
+}
+
+static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16_t prev_center_y)
+{
+    ground_target_hit_type_t hit_target;
+    bool hit_ground;
+    uint16_t impact_world_x;
+    uint16_t hit_world_x = 0;
+    int16_t hit_center_y = 0;
+    int16_t score_delta = 0;
+
+    p->center_y = (int16_t)(p->center_y + p->vy);
+    if (p->gravity_ticks > 0) {
+        --p->gravity_ticks;
+    }
+    if (p->gravity_ticks == 0) {
+        if (p->vy < 0) {
+            if (p->vx < 0) {
+                ++p->vx;
+            } else if (p->vx > 0) {
+                --p->vx;
+            }
         }
-        if (s_bomb_spawn_cooldown > 0) {
-            --s_bomb_spawn_cooldown;
+        if (p->vy < BOMB_MAX_FALL_SPEED) {
+            ++p->vy;
         }
-        if (s_smoke_spawn_cooldown > 0) {
-            --s_smoke_spawn_cooldown;
+        p->gravity_ticks = BOMB_GRAVITY_TICKS;
+    }
+    p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
+
+    (void)ambient_flocks_scatter_at(p->world_x, p->center_y,
+                                    (uint8_t)(PROJECTILE_SPRITE_SIZE_PX / 2));
+
+    if (bomb_hits_plane(p->world_x, p->center_y) ||
+        bomb_hits_plane(prev_world_x, prev_center_y) ||
+        bomb_hits_plane(
+            wrap_world_x((int32_t)prev_world_x +
+                         world_delta_to_screen_x(p->world_x, prev_world_x) / 2),
+            (int16_t)(prev_center_y + (p->center_y - prev_center_y) / 2))) {
+        flight_apply_bomb_hit(p->world_x, p->center_y);
+        spawn_explosion_from(p, p->world_x, p->center_y);
+        return;
+    }
+
+    impact_world_x = wrap_world_x((int32_t)p->world_x + 4);
+    {
+        int16_t terrain_y = flight_terrain_y_at(impact_world_x);
+        hit_target = ground_targets_check_hit(p->world_x, p->center_y,
+                                              &hit_world_x, &hit_center_y,
+                                              &score_delta);
+        hit_ground = p->center_y >= (terrain_y - 8);
+
+        if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+            spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
+            text_mode1_add_score(score_delta);
+        } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
+            spawn_explosion_from(p, p->world_x, p->center_y);
+            text_mode1_add_score(score_delta);
+        } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
+            if (hit_target == GROUND_TARGET_HIT_NORMAL) {
+                p->vx = 0;
+                p->vy = 0;
+                spawn_explosion_from(p, hit_world_x, hit_center_y);
+                text_mode1_add_score(score_delta);
+            } else {
+                flight_apply_bomb_crater(impact_world_x);
+                spawn_explosion_from(
+                    p,
+                    p->world_x,
+                    (int16_t)(terrain_y - (PROJECTILE_SPRITE_SIZE_PX / 2)));
+            }
+        } else if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+            p->active = false;
+        }
+    }
+}
+
+static void projectile_update_shot(projectile_t *p)
+{
+    ground_target_hit_type_t hit_target;
+    bool hit_ground;
+    uint16_t hit_world_x = 0;
+    int16_t hit_center_y = 0;
+    int16_t score_delta = 0;
+
+    if (p->life_ticks > 0) {
+        --p->life_ticks;
+    }
+    if (p->life_ticks == 0) {
+        p->active = false;
+        return;
+    }
+
+    p->center_y = (int16_t)(p->center_y + p->vy);
+
+    if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
+        p->active = false;
+        return;
+    }
+
+    {
+        int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
+        hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
+                                                   &hit_world_x, &hit_center_y,
+                                                   &score_delta);
+        hit_ground = p->center_y >= terrain_y;
+
+        if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+            spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
+            text_mode1_add_score(score_delta);
+        } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
+            p->active = false;
+            text_mode1_add_score(score_delta);
+        } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
+            p->vx = 0;
+            p->vy = 0;
+            spawn_explosion_from(p, hit_world_x, hit_center_y);
+            text_mode1_add_score(score_delta);
+        } else if (hit_ground) {
+            p->active = false;
+        } else {
+            if (p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
+                p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
+                p->active = false;
+            }
+        }
+    }
+}
+
+static void projectiles_tick_10hz(void)
+{
+    if (s_shot_cooldown > 0) {
+        --s_shot_cooldown;
+    }
+    if (s_bomb_spawn_cooldown > 0) {
+        --s_bomb_spawn_cooldown;
+    }
+    if (s_smoke_spawn_cooldown > 0) {
+        --s_smoke_spawn_cooldown;
+    }
+
+    if ((flight_is_wounded() || flight_is_falling()) && s_smoke_spawn_cooldown == 0) {
+        spawn_smoke();
+        s_smoke_spawn_cooldown = SMOKE_SPAWN_COOLDOWN_TICKS;
+    }
+
+    for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+        projectile_t *p = &s_projectiles[i];
+
+        if (!p->active) {
+            continue;
         }
 
-        if ((flight_is_wounded() || flight_is_falling()) && s_smoke_spawn_cooldown == 0) {
-            spawn_smoke();
-            s_smoke_spawn_cooldown = SMOKE_SPAWN_COOLDOWN_TICKS;
-        }
-
-        for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
-            projectile_t *p = &s_projectiles[i];
-
-            if (!p->active) {
+        if (p->explosion) {
+            if (projectile_update_explosion(p)) {
                 continue;
             }
+        }
 
-            if (p->explosion) {
-                int16_t terrain_y;
-                int16_t plane_dx;
-                int16_t plane_dy;
-
-                p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
-                p->center_y = (int16_t)(p->center_y + p->vy);
-
-                if (!flight_is_crashed()) {
-                    plane_dx = (int16_t)p->world_x - (int16_t)flight_world_x_physics();
-                    if (plane_dx > (int16_t)(GROUND_WIDTH * 4)) {
-                        plane_dx -= (int16_t)(GROUND_WIDTH * 8);
-                    } else if (plane_dx < (int16_t)(-GROUND_WIDTH * 4)) {
-                        plane_dx += (int16_t)(GROUND_WIDTH * 8);
-                    }
-                    plane_dy = (int16_t)p->center_y -
-                               (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
-                    if (plane_dx >= -8 && plane_dx <= 7 && plane_dy >= -8 && plane_dy <= 7) {
-                        flight_apply_debris_hit();
-                        p->active = false;
-                        continue;
-                    }
-                }
-
-                if (p->life_ticks > 0) {
-                    --p->life_ticks;
-                }
-                if (p->life_ticks == 0) {
-                    if (p->vy < 0) {
-                        if (p->vx < 0) {
-                            ++p->vx;
-                        } else if (p->vx > 0) {
-                            --p->vx;
-                        }
-                    }
-                    if (p->vy < EXPL_FALL_MIN_SPEED) {
-                        ++p->vy;
-                    }
-                    p->life_ticks = EXPL_LIFE_TICKS;
-                }
-
-                terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                if (p->center_y >= (terrain_y + (PROJECTILE_SPRITE_SIZE_PX / 2)) ||
-                    p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
-                    p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
-                    p->active = false;
-                }
+        if (p->smoke) {
+            if (projectile_update_smoke(p)) {
                 continue;
             }
+        }
 
-            if (p->smoke) {
-                p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
-                p->center_y = (int16_t)(p->center_y + p->vy);
-
-                if (p->life_ticks > 0) {
-                    --p->life_ticks;
-                }
-                if (p->life_ticks == 0) {
-                    p->active = false;
-                    continue;
-                }
-                continue;
-            }
-
+        {
             uint16_t prev_world_x = p->world_x;
             int16_t prev_center_y = p->center_y;
+
             p->world_x = wrap_world_x((int32_t)p->world_x + p->vx);
+
             if (p->bomb) {
-                ground_target_hit_type_t hit_target;
-                bool hit_ground;
-                uint16_t impact_world_x;
-                uint16_t hit_world_x = 0;
-                int16_t hit_center_y = 0;
-                int16_t score_delta = 0;
-
-                p->center_y = (int16_t)(p->center_y + p->vy);
-                if (p->gravity_ticks > 0) {
-                    --p->gravity_ticks;
-                }
-                if (p->gravity_ticks == 0) {
-                    if (p->vy < 0) {
-                        if (p->vx < 0) {
-                            ++p->vx;
-                        } else if (p->vx > 0) {
-                            --p->vx;
-                        }
-                    }
-                    if (p->vy < BOMB_MAX_FALL_SPEED) {
-                        ++p->vy;
-                    }
-                    p->gravity_ticks = BOMB_GRAVITY_TICKS;
-                }
-                p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
-
-                (void)ambient_flocks_scatter_at(p->world_x, p->center_y,
-                                                (uint8_t)(PROJECTILE_SPRITE_SIZE_PX / 2));
-
-                if (bomb_hits_plane(p->world_x, p->center_y) ||
-                    bomb_hits_plane(prev_world_x, prev_center_y) ||
-                    bomb_hits_plane(
-                        wrap_world_x((int32_t)prev_world_x +
-                                     world_delta_to_screen_x(p->world_x, prev_world_x) / 2),
-                        (int16_t)(prev_center_y + (p->center_y - prev_center_y) / 2))) {
-                    flight_apply_bomb_hit(p->world_x, p->center_y);
-                    spawn_explosion_from(p, p->world_x, p->center_y);
-                    continue;
-                }
-
-                impact_world_x = wrap_world_x((int32_t)p->world_x + 4);
-                int16_t terrain_y = flight_terrain_y_at(impact_world_x);
-                hit_target = ground_targets_check_hit(p->world_x, p->center_y,
-                                                      &hit_world_x, &hit_center_y,
-                                                      &score_delta);
-                hit_ground = p->center_y >= (terrain_y - 8);
-
-                if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
-                    spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
-                    text_mode1_add_score(score_delta);
-                } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
-                    spawn_explosion_from(p, p->world_x, p->center_y);
-                    text_mode1_add_score(score_delta);
-                } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
-                    if (hit_target == GROUND_TARGET_HIT_NORMAL) {
-                        p->vx = 0;
-                        p->vy = 0;
-                        spawn_explosion_from(p, hit_world_x, hit_center_y);
-                        text_mode1_add_score(score_delta);
-                    } else {
-                        flight_apply_bomb_crater(impact_world_x);
-                        spawn_explosion_from(
-                            p,
-                            p->world_x,
-                            (int16_t)(terrain_y - (PROJECTILE_SPRITE_SIZE_PX / 2)));
-                    }
-                } else if (p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
-                    p->active = false;
-                }
+                projectile_update_bomb(p, prev_world_x, prev_center_y);
             } else {
-                ground_target_hit_type_t hit_target;
-                bool hit_ground;
-                uint16_t hit_world_x = 0;
-                int16_t hit_center_y = 0;
-                int16_t score_delta = 0;
-
-                if (p->life_ticks > 0) {
-                    --p->life_ticks;
-                }
-                if (p->life_ticks == 0) {
-                    p->active = false;
-                    continue;
-                }
-
-                p->center_y = (int16_t)(p->center_y + p->vy);
-
-                if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
-                    p->active = false;
-                    continue;
-                }
-
-                int16_t terrain_y = flight_terrain_y_at(wrap_world_x((int32_t)p->world_x + 4));
-                hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
-                                                           &hit_world_x, &hit_center_y,
-                                                           &score_delta);
-                hit_ground = p->center_y >= terrain_y;
-
-                if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
-                    spawn_explosive_target_explosion(p, hit_world_x, hit_center_y);
-                    text_mode1_add_score(score_delta);
-                } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
-                    p->active = false;
-                    text_mode1_add_score(score_delta);
-                } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
-                    p->vx = 0;
-                    p->vy = 0;
-                    spawn_explosion_from(p, hit_world_x, hit_center_y);
-                    text_mode1_add_score(score_delta);
-                } else if (hit_ground) {
-                    p->active = false;
-                } else {
-                    if (p->center_y < -PROJECTILE_SPRITE_SIZE_PX ||
-                        p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
-                        p->active = false;
-                    }
-                }
+                projectile_update_shot(p);
             }
         }
-
-        if (s_fire_latched && s_shot_cooldown == 0 && !flight_is_crashed()) {
-            if (spawn_shot()) {
-                s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
-            }
-        }
-        if (s_bomb_latched && s_bomb_spawn_cooldown == 0 && !flight_is_crashed()) {
-            if (spawn_bomb()) {
-                s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
-            }
-        }
-
-        s_fire_latched = false;
-        s_bomb_latched = false;
     }
+}
 
+static void projectiles_render(uint16_t camera_world_x)
+{
     for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
         projectile_t *p = &s_projectiles[i];
 
@@ -637,7 +640,45 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 
         sprite_mode5_set_projectile(i, sprite_x, sprite_y, p->frame_index, visible);
     }
+}
 
+void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
+{
+    bool fire_held = false;
+    bool bomb_held = false;
+
+    if (actions != 0) {
+        fire_held = actions->fire != 0;
+        bomb_held = actions->bomb != 0;
+    }
+
+    if (fire_held) {
+        s_fire_latched = true;
+    }
+    if (bomb_held) {
+        s_bomb_latched = true;
+    }
+
+    if (++s_tick_div >= PROJECTILE_TICK_DIV) {
+        s_tick_div = 0;
+        projectiles_tick_10hz();
+
+        if (s_fire_latched && s_shot_cooldown == 0 && !flight_is_crashed()) {
+            if (spawn_shot()) {
+                s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
+            }
+        }
+        if (s_bomb_latched && s_bomb_spawn_cooldown == 0 && !flight_is_crashed()) {
+            if (spawn_bomb()) {
+                s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
+            }
+        }
+
+        s_fire_latched = false;
+        s_bomb_latched = false;
+    }
+
+    projectiles_render(camera_world_x);
 }
 
 void projectiles_spawn_crash_explosion(uint16_t world_x, int16_t center_y, bool big_explosion)
