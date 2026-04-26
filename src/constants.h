@@ -95,6 +95,14 @@
 #define PLAYER_GROUND_CONTACT_FROM_TOP_PX  13
 #define PLAYER_FLIGHT_SPEED_X_PX           2
 #define PLAYER_FLIGHT_SPEED_Y_PX           2
+#define PLANE_HITBOX_WIDTH_PX              14
+#define PLANE_HITBOX_HEIGHT_PX             10
+#define PLANE_HITBOX_TOP_OFFSET_PX         4
+#define PLANE_HITBOX_CENTER_Y_OFFSET_PX    (PLANE_HITBOX_TOP_OFFSET_PX + (PLANE_HITBOX_HEIGHT_PX / 2))
+#define PLANE_HITBOX_HALF_WIDTH_LEFT_PX    (PLANE_HITBOX_WIDTH_PX / 2)
+#define PLANE_HITBOX_HALF_WIDTH_RIGHT_PX   (PLANE_HITBOX_WIDTH_PX / 2 - 1)
+#define PLANE_HITBOX_HALF_HEIGHT_UP_PX     (PLANE_HITBOX_HEIGHT_PX / 2)
+#define PLANE_HITBOX_HALF_HEIGHT_DOWN_PX   (PLANE_HITBOX_HEIGHT_PX / 2 - 1)
 
 // Gameplay features (toggles for classic vs enhanced behavior)
 // When enabled, hit planes enter a wounded state with reduced control before crashing.

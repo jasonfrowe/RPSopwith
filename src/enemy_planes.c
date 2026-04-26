@@ -61,9 +61,7 @@ enum {
     ENEMY_SCORE_DELTA = 100,
     TERRITORY_EDGE_MARGIN_PX = 32,
     FALL_COUNT_RESET = 10,
-    FALL_MAX_DY = 10,
-    COLLISION_BOX_INSET_PX = 2,
-    COLLISION_BOX_SIZE_PX = PLAYER_SPRITE_SIZE_PX - (COLLISION_BOX_INSET_PX * 2)
+    FALL_MAX_DY = 10
 };
 
 static enemy_plane_t s_enemies[MAX_ENEMIES];
@@ -271,7 +269,7 @@ static bool shoot_will_hit_player(const enemy_plane_t *e)
     int8_t bvx;
     int8_t bvy;
     uint16_t player_world_x = flight_world_x_physics();
-    int16_t player_center_y = (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+    int16_t player_center_y = (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
     uint8_t player_speed = flight_plane_speed();
     uint8_t player_pitch = player_pitch_for_enemy();
     int8_t pvx;
@@ -295,7 +293,10 @@ static bool shoot_will_hit_player(const enemy_plane_t *e)
 
         dx = wrapped_world_delta(player_world_x, bullet_world_x);
         dy = (int16_t)(bullet_center_y - player_center_y);
-        if (dx >= -8 && dx <= 8 && dy >= -8 && dy <= 8) {
+        if (dx >= -(int16_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX &&
+            dx <= (int16_t)PLANE_HITBOX_HALF_WIDTH_RIGHT_PX &&
+            dy >= -(int16_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX &&
+            dy <= (int16_t)PLANE_HITBOX_HALF_HEIGHT_DOWN_PX) {
             return true;
         }
     }
@@ -727,13 +728,14 @@ static void enemy_tick_10hz(enemy_plane_t *e)
     }
 
     {
-        int16_t plane_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        int16_t plane_center_y = (int16_t)(e->plane_y + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
         bool flock_hit = ambient_flocks_scatter_at(e->world_x,
                                                    plane_center_y,
-                                                   (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+                               (uint8_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX);
         bool bird_hit = ambient_birds_check_plane_hit(e->world_x,
                                                       plane_center_y,
-                                                      (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+                                  (uint8_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX,
+                                  (uint8_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX);
 
         if (flock_hit || bird_hit) {
             enemy_start_falling(e);
@@ -926,18 +928,18 @@ bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
         }
 
         dx = wrapped_world_delta(e->world_x, shot_world_x);
-        top_y = e->plane_y;
-        bot_y = (int16_t)(e->plane_y + PLAYER_SPRITE_SIZE_PX - 1);
+        top_y = (int16_t)(e->plane_y + PLANE_HITBOX_TOP_OFFSET_PX);
+        bot_y = (int16_t)(top_y + PLANE_HITBOX_HEIGHT_PX - 1);
 
-        if (dx >= -(PLAYER_SPRITE_SIZE_PX / 2) &&
-            dx <= (PLAYER_SPRITE_SIZE_PX / 2) &&
+        if (dx >= -(int16_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX &&
+            dx <= (int16_t)PLANE_HITBOX_HALF_WIDTH_RIGHT_PX &&
             shot_center_y >= top_y && shot_center_y <= bot_y) {
             enemy_start_falling(e);
             if (hit_world_x != 0) {
                 *hit_world_x = e->world_x;
             }
             if (hit_center_y != 0) {
-                *hit_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+                *hit_center_y = (int16_t)(e->plane_y + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
             }
             if (score_delta != 0) {
                 *score_delta = ENEMY_SCORE_DELTA;
@@ -998,7 +1000,8 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
                                          uint16_t *hit_world_x, int16_t *hit_center_y,
                                          bool *big_explosion)
 {
-    int16_t collision_threshold = (int16_t)COLLISION_BOX_SIZE_PX;
+    int16_t collision_threshold_x = (int16_t)PLANE_HITBOX_WIDTH_PX;
+    int16_t collision_threshold_y = (int16_t)PLANE_HITBOX_HEIGHT_PX;
 
     (void)player_prev_world_x;
     (void)player_prev_plane_y;
@@ -1014,18 +1017,22 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
         uint16_t contact_world_x;
         int16_t contact_center_y;
         bool collided_now;
+        int16_t enemy_center_y;
+        int16_t player_center_y;
 
         if (e->destroyed || e->falling || e->crashed) {
             continue;
         }
 
         now_dx = wrapped_world_delta(e->world_x, player_world_x);
-        now_dy = (int16_t)(player_plane_y - e->plane_y);
-        collided_now = (abs_i16(now_dx) < collision_threshold) &&
-                       (abs_i16(now_dy) < collision_threshold);
+        enemy_center_y = (int16_t)(e->plane_y + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
+        player_center_y = (int16_t)(player_plane_y + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
+        now_dy = (int16_t)(player_center_y - enemy_center_y);
+        collided_now = (abs_i16(now_dx) < collision_threshold_x) &&
+                   (abs_i16(now_dy) < collision_threshold_y);
 
         contact_world_x = e->world_x;
-        contact_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        contact_center_y = enemy_center_y;
 
         if (collided_now) {
             int16_t sep_dx = wrapped_world_delta(player_world_x, e->world_x);

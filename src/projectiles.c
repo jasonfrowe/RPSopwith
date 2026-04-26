@@ -163,7 +163,7 @@ static bool bomb_hits_plane(uint16_t bomb_world_x, int16_t bomb_center_y)
 
     plane_dx = world_delta_to_screen_x(bomb_world_x, flight_world_x_physics());
     plane_dy = (int16_t)(bomb_center_y -
-                         (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2)));
+                         (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX));
 
     return (plane_dx >= -BOMB_PLANE_HIT_HALF_SIZE &&
             plane_dx <= BOMB_PLANE_HIT_HALF_SIZE &&
@@ -374,8 +374,11 @@ static bool projectile_update_explosion(projectile_t *p)
     if (!flight_is_crashed()) {
         plane_dx = world_delta_to_screen_x(p->world_x, flight_world_x_physics());
         plane_dy = (int16_t)(p->center_y -
-                             (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2)));
-        if (plane_dx >= -8 && plane_dx <= 7 && plane_dy >= -8 && plane_dy <= 7) {
+                             (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX));
+        if (plane_dx >= -(int16_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX &&
+            plane_dx <= (int16_t)PLANE_HITBOX_HALF_WIDTH_RIGHT_PX &&
+            plane_dy >= -(int16_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX &&
+            plane_dy <= (int16_t)PLANE_HITBOX_HALF_HEIGHT_DOWN_PX) {
             flight_apply_debris_hit();
             p->active = false;
             return true;
@@ -560,8 +563,11 @@ static void projectile_update_shot(projectile_t *p)
     if (p->owner == PROJ_OWNER_ENEMY && !flight_is_crashed()) {
         plane_dx = world_delta_to_screen_x(p->world_x, flight_world_x_physics());
         plane_dy = (int16_t)(p->center_y -
-                             (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2)));
-        if (plane_dx >= -7 && plane_dx <= 7 && plane_dy >= -7 && plane_dy <= 7) {
+                             (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX));
+        if (plane_dx >= -(int16_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX &&
+            plane_dx <= (int16_t)PLANE_HITBOX_HALF_WIDTH_RIGHT_PX &&
+            plane_dy >= -(int16_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX &&
+            plane_dy <= (int16_t)PLANE_HITBOX_HALF_HEIGHT_DOWN_PX) {
             flight_apply_debris_hit();
             p->active = false;
             return;

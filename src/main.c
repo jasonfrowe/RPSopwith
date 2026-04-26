@@ -221,15 +221,16 @@ static void update_player(const input_actions_t *actions)
     flight_update(actions);
 
     if (!flight_is_crashed()) {
-        int16_t plane_center_y = (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2));
+        int16_t plane_center_y = (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
         bool flock_hit = ambient_flocks_scatter_at(
             flight_world_x_physics(),
             plane_center_y,
-            (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+            (uint8_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX);
         bool bird_hit = ambient_birds_check_plane_hit(
             flight_world_x_physics(),
             plane_center_y,
-            (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+            (uint8_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX,
+            (uint8_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX);
 
         if (flock_hit || bird_hit) {
             flight_apply_debris_hit();
