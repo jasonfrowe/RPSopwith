@@ -368,9 +368,11 @@ static void start_falling_from_damage(void)
     s_flight.crashed = false;
     s_flight.airborne = true;
     s_flight.stalled_high = false;
+    s_flight.landing = false;
     s_flight.plane_vy = (int8_t)(-dy);
     s_flight.fall_dx = (int8_t)dx;
     s_flight.fall_dy = (int8_t)(-dy);
+    s_flight.fall_countdown = 10;
 }
 
 static void mark_plane_crash(uint16_t crash_world_x, int16_t crash_center_y,
@@ -412,6 +414,7 @@ static void reset_plane_to_home(void)
     s_flight.plane_x = (int16_t)(SCREEN_WIDTH / 2u);
     s_flight.prev_plane_y = player_home_plane_top_y();
     s_flight.plane_y = player_home_plane_top_y();
+    s_flight.fall_countdown = 10;
     s_flight.falling = false;
     s_flight.crashed = false;
 }
@@ -480,18 +483,48 @@ static void flight_tick_10hz(const input_actions_t *actions)
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
         ground_target_hit_type_t hit_type;
+        int8_t fall_flaps = 0;
 
         if (consume_flip_repeat(actions->flip != 0u)) {
             s_flight.plane_orient = !s_flight.plane_orient;
         }
 
-        s_flight.world_x = wrap_world_x_add(s_flight.world_x, s_flight.plane_orient ? -1 : 1);
-        s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.plane_vy);
-        if (s_flight.plane_vy < 10) {
-            ++s_flight.plane_vy;
+        if (actions->down) {
+            fall_flaps = 1;
         }
-        s_flight.plane_pitch = (int8_t)pitch_from_velocity(s_flight.plane_orient ? -1 : 1,
-                                                           s_flight.plane_vy);
+        if (actions->up) {
+            fall_flaps = -1;
+        }
+
+        s_flight.world_x = wrap_world_x((int16_t)s_flight.world_x + s_flight.fall_dx);
+        s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.fall_dy);
+        s_flight.plane_vy = s_flight.fall_dy;
+        s_flight.plane_pitch = (int8_t)pitch_from_velocity(s_flight.fall_dx, s_flight.fall_dy);
+
+        if ((s_flight.fall_dy > 0) && (s_flight.fall_dx != 0)) {
+            if (s_flight.plane_orient ^ (s_flight.fall_dx < 0)) {
+                s_flight.fall_countdown -= fall_flaps;
+            } else {
+                s_flight.fall_countdown += fall_flaps;
+            }
+        }
+
+        s_flight.fall_countdown -= 2;
+        if (s_flight.fall_countdown <= 0) {
+            if (s_flight.fall_dy > 0) {
+                if (s_flight.fall_dx < 0) {
+                    ++s_flight.fall_dx;
+                } else if (s_flight.fall_dx > 0) {
+                    --s_flight.fall_dx;
+                } else {
+                    s_flight.plane_orient = !s_flight.plane_orient;
+                }
+            }
+            if (s_flight.fall_dy < 10) {
+                ++s_flight.fall_dy;
+            }
+            s_flight.fall_countdown = 10;
+        }
 
         hit_type = ground_targets_check_plane_collision(s_flight.world_x, s_flight.plane_y,
                                                         &hit_world_x, &hit_center_y,

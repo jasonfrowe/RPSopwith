@@ -779,12 +779,15 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
 {
     bool fire_held = false;
     bool bomb_held = false;
+    bool player_can_fire;
     uint16_t expl_world_x;
     int16_t expl_center_y;
     bool apply_crater;
     bool big_explosion;
 
-    if (actions != 0) {
+    player_can_fire = !flight_is_crashed() && !flight_is_falling();
+
+    if (actions != 0 && player_can_fire) {
         fire_held = actions->fire != 0;
         bomb_held = actions->bomb != 0;
     }
@@ -794,6 +797,11 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
     }
     if (bomb_held) {
         s_bomb_latched = true;
+    }
+
+    if (!player_can_fire) {
+        s_fire_latched = false;
+        s_bomb_latched = false;
     }
 
     while (flight_consume_plane_explosion(&expl_world_x, &expl_center_y, &apply_crater, &big_explosion)) {
@@ -807,12 +815,12 @@ void projectiles_update(uint16_t camera_world_x, const input_actions_t *actions)
         s_tick_div = 0u;
         projectiles_tick_10hz();
 
-        if (s_fire_latched && s_shot_cooldown == 0u && !flight_is_crashed()) {
+        if (s_fire_latched && s_shot_cooldown == 0u && player_can_fire) {
             if (spawn_shot()) {
                 s_shot_cooldown = SHOT_FIRE_COOLDOWN_TICKS;
             }
         }
-        if (s_bomb_latched && s_bomb_spawn_cooldown == 0u && !flight_is_crashed()) {
+        if (s_bomb_latched && s_bomb_spawn_cooldown == 0u && player_can_fire) {
             if (spawn_bomb()) {
                 s_bomb_spawn_cooldown = BOMB_FIRE_COOLDOWN_TICKS;
             }
