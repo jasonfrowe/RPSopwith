@@ -7,7 +7,6 @@
 #include "enemy_planes.h"
 #include "flight.h"
 #include "ground_targets.h"
-#include "original_ground_3000.h"
 #include "projectiles.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
@@ -244,7 +243,10 @@ static int16_t terrain_height_at_world_x(uint16_t world_x)
 {
     if (!s_terrain_ready) {
         for (uint16_t x = 0u; x < WORLD_WIDTH_PX; ++x) {
-            uint16_t y = (uint16_t)(199u - s_original_ground[x]);
+            RIA.addr0 = (unsigned)(GROUND_PROFILE + x);
+            RIA.step0 = 1;
+            uint8_t sample = RIA.rw0;
+            uint16_t y = (uint16_t)(199u - sample);
             s_terrain_height[x] = (y > 239u) ? 239u : (uint8_t)y;
         }
         s_terrain_ready = true;
@@ -986,7 +988,9 @@ void flight_apply_bomb_crater(uint16_t impact_world_x)
 
     for (uint8_t i = 0u; i < 8u; ++i) {
         uint16_t x = (uint16_t)((tile_start + i) % WORLD_WIDTH_PX);
-        uint8_t source_ground = s_original_ground[x];
+        RIA.addr0 = (unsigned)(GROUND_PROFILE + x);
+        RIA.step0 = 1;
+        uint8_t source_ground = RIA.rw0;
         uint8_t min_ground = (source_ground > 40u) ? (uint8_t)(source_ground - 20u) : 20u;
         uint8_t max_crater_y = (uint8_t)(199u - min_ground);
         uint16_t new_y = (uint16_t)(s_terrain_height[x] + crater_profile[i]);
