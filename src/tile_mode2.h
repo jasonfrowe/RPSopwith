@@ -46,6 +46,7 @@ static const uint16_t hud_palette[16] = {
 void tile_mode2_init(void);
 void tile_mode2_set_scroll_x(int16_t world_scroll_px);
 int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px);
+void tile_mode2_apply_crater(uint16_t impact_world_x, uint8_t radius_px, uint8_t max_depth_px);
 void tile_hud_init(void);
 
 #endif // TILE_MODE2_H

@@ -450,15 +450,20 @@ static void enemy_reset_home(enemy_plane_t *e)
 
 static void enemy_start_falling(enemy_plane_t *e)
 {
+    int8_t impact_vx;
+    int8_t impact_vy;
+
     if (e->destroyed || e->falling || e->crashed) {
         return;
     }
 
+    velocity_from_angle(e->angle, e->speed, &impact_vx, &impact_vy);
+
     e->falling = true;
     e->crashed = false;
     e->airborne = true;
-    e->fall_dx = e->vx;
-    e->fall_dy = e->vy;
+    e->fall_dx = (impact_vx != 0) ? impact_vx : e->vx;
+    e->fall_dy = (impact_vy != 0) ? impact_vy : e->vy;
     if (e->fall_dx == 0) {
         e->fall_dx = e->orient ? -1 : 1;
     }
@@ -860,7 +865,7 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
         int16_t player_center_y;
         int16_t dy;
 
-        if (e->destroyed || e->falling || e->crashed || !e->airborne) {
+        if (e->destroyed) {
             continue;
         }
 

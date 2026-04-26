@@ -6,12 +6,21 @@
 
 unsigned TILE_GROUND_CONFIG;
 unsigned TILE_HUD_CONFIG;
+static uint8_t s_ground_y_cache[GROUND_WIDTH * 8u];
+static uint8_t s_ground_y_valid[GROUND_WIDTH * 8u];
 
 static uint8_t xram_read_u8(unsigned addr)
 {
     RIA.addr0 = addr;
     RIA.step0 = 1;
     return RIA.rw0;
+}
+
+static void xram_write_u8(unsigned addr, uint8_t value)
+{
+    RIA.addr0 = addr;
+    RIA.step0 = 1;
+    RIA.rw0 = value;
 }
 
 static uint8_t tile_pixel_index(uint8_t tile_id, uint8_t x, uint8_t y)
@@ -38,6 +47,101 @@ static int16_t wrap_world_px(int16_t x)
     }
 
     return x;
+}
+
+static int16_t scan_ground_y_at_world_x(uint16_t world_x_px)
+{
+    uint16_t tile_x = (uint16_t)((world_x_px >> 3) % GROUND_WIDTH);
+    uint8_t local_x = (uint8_t)(world_x_px & 0x07u);
+
+    for (uint16_t row = 0; row < GROUND_HEIGHT; ++row) {
+        unsigned tile_addr = GROUND_DATA + ((unsigned)row * GROUND_WIDTH) + tile_x;
+        uint8_t tile_id = xram_read_u8(tile_addr);
+
+        if (tile_id != 0u) {
+            for (uint8_t y = 0; y < 8u; ++y) {
+                if (tile_pixel_index(tile_id, local_x, y) == 2u) {
+                    return (int16_t)((row * 8u) + y);
+                }
+            }
+        }
+    }
+
+    return (int16_t)(SCREEN_HEIGHT - 1);
+}
+
+static void clear_ground_cache(void)
+{
+    for (uint16_t i = 0u; i < (uint16_t)(GROUND_WIDTH * 8u); ++i) {
+        s_ground_y_cache[i] = 0u;
+        s_ground_y_valid[i] = 0u;
+    }
+}
+
+static uint8_t cached_ground_y(uint16_t world_x_px)
+{
+    uint16_t wrapped_x = (uint16_t)(world_x_px % (GROUND_WIDTH * 8u));
+
+    if (s_ground_y_valid[wrapped_x] == 0u) {
+        s_ground_y_cache[wrapped_x] = (uint8_t)scan_ground_y_at_world_x(wrapped_x);
+        s_ground_y_valid[wrapped_x] = 1u;
+    }
+
+    return s_ground_y_cache[wrapped_x];
+}
+
+static uint8_t find_surface_row(uint16_t tile_x, uint8_t *tile_id)
+{
+    for (uint8_t row = 0u; row < GROUND_HEIGHT; ++row) {
+        unsigned tile_addr = GROUND_DATA + ((unsigned)row * GROUND_WIDTH) + tile_x;
+        uint8_t id = xram_read_u8(tile_addr);
+
+        if (id != 0u) {
+            *tile_id = id;
+            return row;
+        }
+    }
+
+    *tile_id = 0u;
+    return (uint8_t)(GROUND_HEIGHT - 1u);
+}
+
+static void update_visual_column_from_cache(uint16_t tile_x)
+{
+    uint16_t base_x = (uint16_t)((tile_x * 8u) % (GROUND_WIDTH * 8u));
+    uint8_t deepest_y = 0u;
+    uint8_t surface_row;
+    uint8_t old_row;
+    uint8_t surface_tile_id;
+
+    for (uint8_t i = 0u; i < 8u; ++i) {
+        uint8_t y = cached_ground_y((uint16_t)(base_x + i));
+        if (y > deepest_y) {
+            deepest_y = y;
+        }
+    }
+
+    surface_row = (uint8_t)(deepest_y >> 3);
+    if (surface_row >= GROUND_HEIGHT) {
+        surface_row = (uint8_t)(GROUND_HEIGHT - 1u);
+    }
+
+    old_row = find_surface_row(tile_x, &surface_tile_id);
+    if (surface_tile_id == 0u) {
+        return;
+    }
+
+    if (surface_row >= old_row) {
+        for (uint8_t row = old_row; row < surface_row; ++row) {
+            unsigned clear_addr = GROUND_DATA + ((unsigned)row * GROUND_WIDTH) + tile_x;
+            xram_write_u8(clear_addr, 0u);
+        }
+    }
+
+    {
+        unsigned set_addr = GROUND_DATA + ((unsigned)surface_row * GROUND_WIDTH) + tile_x;
+        xram_write_u8(set_addr, surface_tile_id);
+    }
 }
 
 void tile_mode2_init(void) {
@@ -69,6 +173,7 @@ void tile_mode2_init(void) {
     }
 
     tile_mode2_set_scroll_x((int16_t)PLAYER_START_WORLD_X_PX);
+    clear_ground_cache();
 }
 
 void tile_mode2_set_scroll_x(int16_t world_scroll_px)
@@ -82,23 +187,52 @@ void tile_mode2_set_scroll_x(int16_t world_scroll_px)
 
 int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px)
 {
-    uint16_t tile_x = (uint16_t)((world_x_px >> 3) % GROUND_WIDTH);
-    uint8_t local_x = (uint8_t)(world_x_px & 0x07u);
+    return (int16_t)cached_ground_y(world_x_px);
+}
 
-    for (uint16_t row = 0; row < GROUND_HEIGHT; ++row) {
-        unsigned tile_addr = GROUND_DATA + ((unsigned)row * GROUND_WIDTH) + tile_x;
-        uint8_t tile_id = xram_read_u8(tile_addr);
+void tile_mode2_apply_crater(uint16_t impact_world_x, uint8_t radius_px, uint8_t max_depth_px)
+{
+    uint16_t world_width = (uint16_t)(GROUND_WIDTH * 8u);
+    uint16_t wrapped_impact_x = (uint16_t)(impact_world_x % world_width);
+    uint16_t tile_x = (uint16_t)((wrapped_impact_x >> 3) % GROUND_WIDTH);
+    uint16_t tile_base_x = (uint16_t)(tile_x << 3);
+    uint8_t center = (uint8_t)(wrapped_impact_x & 0x07u);
 
-        if (tile_id != 0u) {
-            for (uint8_t y = 0; y < 8u; ++y) {
-                if (tile_pixel_index(tile_id, local_x, y) == 2u) {
-                    return (int16_t)((row * 8u) + y);
-                }
+    if (max_depth_px == 0u) {
+        return;
+    }
+
+    if (radius_px == 0u) {
+        radius_px = 1u;
+    }
+
+    for (uint8_t i = 0u; i < 8u; ++i) {
+        uint16_t world_x = (uint16_t)((tile_base_x + i) % world_width);
+        uint8_t old_y = cached_ground_y(world_x);
+        int16_t abs_dx = (i > center) ? (int16_t)(i - center) : (int16_t)(center - i);
+        int16_t base_depth = (int16_t)max_depth_px -
+                             (int16_t)(((uint16_t)abs_dx * max_depth_px) / radius_px);
+        int8_t rough = (int8_t)(((uint8_t)(wrapped_impact_x + (uint16_t)(i * 13u)) & 0x03u) - 1);
+        int16_t depth = base_depth + rough;
+
+        if (depth < 0) {
+            depth = 0;
+        }
+        if (depth > max_depth_px) {
+            depth = max_depth_px;
+        }
+
+        if (depth > 0) {
+            uint8_t new_y = (uint8_t)(old_y + (uint8_t)depth);
+            if (new_y > (uint8_t)(SCREEN_HEIGHT - 1)) {
+                new_y = (uint8_t)(SCREEN_HEIGHT - 1);
             }
+            s_ground_y_cache[world_x] = new_y;
+            s_ground_y_valid[world_x] = 1u;
         }
     }
 
-    return (int16_t)(SCREEN_HEIGHT - 1);
+    update_visual_column_from_cache(tile_x);
 }
 
 void tile_hud_init(void) {

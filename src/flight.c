@@ -22,6 +22,8 @@ enum {
     FLIGHT_FPS_DIV = 6,
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
+    CRATER_RADIUS_PX = 4,
+    CRATER_MAX_DEPTH_PX = 4,
     MIN_SPEED = 5,
     MAX_SPEED = 10,
     MAX_THROTTLE = 4
@@ -57,6 +59,7 @@ static flight_state_t s_flight;
 static uint8_t s_tick_div = 0;
 static uint16_t s_render_world_x;
 static int16_t s_render_plane_y;
+static int16_t s_home_runway_ground_y;
 static bool s_crash_explosion_pending = false;
 static uint16_t s_crash_explosion_world_x;
 static int16_t s_crash_explosion_center_y;
@@ -231,6 +234,11 @@ static int16_t terrain_height_at_world_x(uint16_t world_x)
 }
 
 static int16_t player_runway_ground_y(void)
+{
+    return s_home_runway_ground_y;
+}
+
+static int16_t sample_player_runway_ground_y(void)
 {
     int16_t height = 0;
 
@@ -665,7 +673,6 @@ static void flight_tick_10hz(const input_actions_t *actions)
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
         ground_target_hit_type_t hit_type;
-        bool hit_enemy;
 
         s_flight.plane_vy = (int8_t)(-dy);
         s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.plane_vy);
@@ -690,16 +697,23 @@ static void flight_tick_10hz(const input_actions_t *actions)
                 queue_target_hit_explosion(hit_world_x, hit_center_y, score_delta, hit_type);
                 start_falling_from_damage();
             }
+        }
+    }
 
-            if (!s_flight.falling && !s_flight.crashed) {
-                hit_enemy = enemy_planes_check_player_collision(s_flight.world_x,
-                                                                s_flight.plane_y,
-                                                                0,
-                                                                0,
-                                                                0);
-                if (hit_enemy) {
-                    start_falling_from_damage();
-                }
+    if (!s_flight.crashed) {
+        bool hit_enemy = enemy_planes_check_player_collision(s_flight.world_x,
+                                                              s_flight.plane_y,
+                                                              0,
+                                                              0,
+                                                              0);
+        if (hit_enemy) {
+            if (s_flight.falling) {
+                mark_plane_crash(s_flight.world_x,
+                                 (int16_t)(s_flight.plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
+                                 false,
+                                 false);
+            } else {
+                start_falling_from_damage();
             }
         }
     }
@@ -729,6 +743,7 @@ finalize_tick:
 void flight_init(void)
 {
     s_tick_div = 0u;
+    s_home_runway_ground_y = sample_player_runway_ground_y();
     reset_plane_to_home();
     s_render_world_x = s_flight.world_x;
     s_render_plane_y = s_flight.plane_y;
@@ -868,5 +883,5 @@ int16_t flight_terrain_y_at(uint16_t world_x)
 
 void flight_apply_bomb_crater(uint16_t impact_world_x)
 {
-    (void)impact_world_x;
+    tile_mode2_apply_crater(impact_world_x, CRATER_RADIUS_PX, CRATER_MAX_DEPTH_PX);
 }
