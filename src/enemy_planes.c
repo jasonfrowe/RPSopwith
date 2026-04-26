@@ -690,6 +690,15 @@ static void enemy_tick_10hz(enemy_plane_t *e)
         if (e->plane_y > floor_y) {
             e->plane_y = floor_y;
             if (e->vy > 0) { e->vy = 0; }
+
+            // Recover to a horizontal heading so loitering planes don't pin
+            // themselves nose-down against the altitude floor.
+            e->angle = e->orient ? 8u : 0u;
+            e->flaps = 0;
+            if (e->speed < enemy_min_speed()) {
+                e->speed = enemy_min_speed();
+            }
+            velocity_from_angle(e->angle, e->speed, &e->vx, &e->vy);
         }
     }
 
