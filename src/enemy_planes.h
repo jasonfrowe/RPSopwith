@@ -5,6 +5,8 @@
 #include <stdint.h>
 
 void enemy_planes_init(void);
+void enemy_planes_set_enabled(bool enabled);
+void enemy_planes_set_level(uint8_t level);
 void enemy_planes_update(uint16_t camera_world_x);
 bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
                                  uint16_t *hit_world_x, int16_t *hit_center_y,

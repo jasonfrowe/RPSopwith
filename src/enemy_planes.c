@@ -67,6 +67,8 @@ enum {
 static enemy_plane_t s_enemies[MAX_ENEMIES];
 static uint8_t s_tick_div;
 static uint16_t s_tick_count_10hz;
+static bool s_enemy_enabled = true;
+static uint8_t s_level_bonus = 0u;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -77,6 +79,16 @@ static const int8_t s_gravity_bias[16] = {
     0, -1, -2, -3, -4, -3, -2, -1,
     0, 1, 2, 3, 4, 3, 2, 1
 };
+
+static uint8_t enemy_min_speed(void)
+{
+    return (uint8_t)(MIN_SPEED + s_level_bonus);
+}
+
+static uint8_t enemy_max_speed(void)
+{
+    return (uint8_t)(MAX_SPEED + s_level_bonus);
+}
 
 static int16_t abs_i16(int16_t v)
 {
@@ -315,7 +327,7 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
 
     for (uint8_t i = 0; i < 3u; ++i) {
         uint8_t nangle = (uint8_t)((e->angle + (e->orient ? -cflaps[i] : cflaps[i]) + 16) & 0x0Fu);
-        uint8_t nspeed = clamp_u8((uint8_t)(e->speed + 1u), MIN_SPEED, MAX_SPEED);
+        uint8_t nspeed = clamp_u8((uint8_t)(e->speed + 1u), enemy_min_speed(), enemy_max_speed());
         int8_t cvx;
         int8_t cvy;
         uint16_t nx;
@@ -367,7 +379,7 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
         }
     }
 
-    if (e->speed < MIN_SPEED) {
+    if (e->speed < enemy_min_speed()) {
         e->accel = MAX_THROTTLE;
     }
 
@@ -613,7 +625,7 @@ static void enemy_tick_10hz(enemy_plane_t *e)
 
         // Launch when delay expires - no "patrol mode" gate
         e->airborne = true;
-        e->speed = MIN_SPEED;
+        e->speed = enemy_min_speed();
         e->accel = MAX_THROTTLE;
         e->angle = e->orient ? 8u : 0u;
     }
@@ -622,8 +634,8 @@ static void enemy_tick_10hz(enemy_plane_t *e)
     e->angle = (uint8_t)((e->angle + (e->orient ? -e->flaps : e->flaps) + 16) & 0x0Fu);
 
     if ((s_tick_count_10hz & 0x03u) == 0u) {
-        speed_limit = (int16_t)(MIN_SPEED + e->accel + s_gravity_bias[e->angle]);
-        speed_limit = clamp_i16(speed_limit, MIN_SPEED, MAX_SPEED);
+        speed_limit = (int16_t)(enemy_min_speed() + e->accel + s_gravity_bias[e->angle]);
+        speed_limit = clamp_i16(speed_limit, enemy_min_speed(), enemy_max_speed());
 
         if (e->speed < (uint8_t)speed_limit) {
             ++e->speed;
@@ -774,6 +786,13 @@ void enemy_planes_init(void)
 
 void enemy_planes_update(uint16_t camera_world_x)
 {
+    if (!s_enemy_enabled) {
+        for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
+            sprite_mode5_set_enemy(i, -32, -32, 0, false);
+        }
+        return;
+    }
+
     if (++s_tick_div >= ENEMY_FPS_DIV) {
         s_tick_div = 0u;
         ++s_tick_count_10hz;
@@ -787,10 +806,28 @@ void enemy_planes_update(uint16_t camera_world_x)
     }
 }
 
+void enemy_planes_set_enabled(bool enabled)
+{
+    s_enemy_enabled = enabled;
+}
+
+void enemy_planes_set_level(uint8_t level)
+{
+    if (level == 0u) {
+        level = 1u;
+    }
+
+    s_level_bonus = (uint8_t)(level - 1u);
+}
+
 bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
                                  uint16_t *hit_world_x, int16_t *hit_center_y,
                                  int16_t *score_delta, bool *big_explosion)
 {
+    if (!s_enemy_enabled) {
+        return false;
+    }
+
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         enemy_plane_t *e = &s_enemies[i];
         int16_t dx;
@@ -832,6 +869,10 @@ bool enemy_planes_check_fragment_hit(uint16_t world_x, int16_t center_y, uint8_t
                                      uint16_t *hit_world_x, int16_t *hit_center_y,
                                      bool *big_explosion)
 {
+    if (!s_enemy_enabled) {
+        return false;
+    }
+
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         enemy_plane_t *e = &s_enemies[i];
         int16_t dx;
@@ -869,6 +910,10 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
                                          uint16_t *hit_world_x, int16_t *hit_center_y,
                                          bool *big_explosion)
 {
+    if (!s_enemy_enabled) {
+        return false;
+    }
+
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         enemy_plane_t *e = &s_enemies[i];
         int16_t dx;

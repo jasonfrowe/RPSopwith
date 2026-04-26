@@ -57,6 +57,7 @@ typedef struct flight_state_s {
 static flight_state_t s_flight;
 static uint8_t s_terrain_height[WORLD_WIDTH_PX];
 static bool s_terrain_ready = false;
+static uint8_t s_level_bonus = 0u;
 static uint8_t s_tick_div = 0;
 static uint16_t s_render_world_x;
 static int16_t s_render_plane_y;
@@ -76,6 +77,16 @@ static const int8_t s_gravity_bias[16] = {
     0, -1, -2, -3, -4, -3, -2, -1,
     0, 1, 2, 3, 4, 3, 2, 1
 };
+
+static uint8_t flight_min_speed(void)
+{
+    return (uint8_t)(MIN_SPEED + s_level_bonus);
+}
+
+static uint8_t flight_max_speed(void)
+{
+    return (uint8_t)(MAX_SPEED + s_level_bonus);
+}
 
 static int16_t clamp_i16(int16_t v, int16_t lo, int16_t hi)
 {
@@ -312,17 +323,17 @@ static void update_autohome(uint8_t *nangle, int16_t *nspeed)
     int8_t desired_vy;
 
     if (dx < -8) {
-        desired_vx = -MAX_SPEED;
+        desired_vx = -(int8_t)flight_max_speed();
     } else if (dx > 8) {
-        desired_vx = MAX_SPEED;
+        desired_vx = (int8_t)flight_max_speed();
     } else {
         desired_vx = (int8_t)dx;
     }
 
     if (dy < -8) {
-        desired_vy = -MAX_SPEED;
+        desired_vy = -(int8_t)flight_max_speed();
     } else if (dy > 8) {
-        desired_vy = MAX_SPEED;
+        desired_vy = (int8_t)flight_max_speed();
     } else {
         desired_vy = (int8_t)dy;
     }
@@ -332,8 +343,8 @@ static void update_autohome(uint8_t *nangle, int16_t *nspeed)
     }
 
     *nangle = angle_step_toward(*nangle, pitch_from_velocity(desired_vx, desired_vy));
-    if (*nspeed < (MIN_SPEED + 2)) {
-        *nspeed = (MIN_SPEED + 2);
+    if (*nspeed < (int16_t)(flight_min_speed() + 2u)) {
+        *nspeed = (int16_t)(flight_min_speed() + 2u);
     }
     if (s_flight.throttle < MAX_THROTTLE) {
         s_flight.throttle = MAX_THROTTLE;
@@ -610,11 +621,11 @@ static void flight_tick_10hz(const input_actions_t *actions)
 
     if ((s_flight.tick_count_10hz & 0x03u) == 0u) {
         if (s_flight.airborne) {
-            if (!s_flight.stalled_high && nspeed < MIN_SPEED) {
+            if (!s_flight.stalled_high && nspeed < (int16_t)flight_min_speed()) {
                 --nspeed;
                 update = true;
             } else {
-                speed_limit = (int16_t)(MIN_SPEED + s_flight.throttle + s_gravity_bias[nangle]);
+                speed_limit = (int16_t)(flight_min_speed() + s_flight.throttle + s_gravity_bias[nangle]);
                 if (nspeed < speed_limit) {
                     ++nspeed;
                     update = true;
@@ -628,14 +639,15 @@ static void flight_tick_10hz(const input_actions_t *actions)
 
     if (update) {
         if (!s_flight.airborne) {
-            nspeed = (s_flight.throttle == 0u && flaps == 0) ? 0 : MIN_SPEED;
+            nspeed = (s_flight.throttle == 0u && flaps == 0) ? 0 : (int16_t)flight_min_speed();
         } else if (!s_flight.stalled_high && nspeed <= 0) {
             enter_stall_state();
             nspeed = 0;
         }
 
         s_flight.plane_pitch = (int8_t)nangle;
-        s_flight.speed = (uint8_t)clamp_i16(nspeed, 0, (MAX_SPEED + MAX_THROTTLE));
+        s_flight.speed = (uint8_t)clamp_i16(nspeed, 0,
+                                            (int16_t)(flight_max_speed() + MAX_THROTTLE));
     }
 
     dx = (int16_t)((s_flight.speed * s_sintab[((uint8_t)s_flight.plane_pitch + 4u) & 15u]) / 256);
@@ -771,6 +783,15 @@ void flight_init(void)
     s_render_world_x = s_flight.world_x;
     s_render_plane_y = s_flight.plane_y;
     apply_visuals();
+}
+
+void flight_set_level(uint8_t level)
+{
+    if (level == 0u) {
+        level = 1u;
+    }
+
+    s_level_bonus = (uint8_t)(level - 1u);
 }
 
 void flight_update(const input_actions_t *actions)

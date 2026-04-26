@@ -10,9 +10,10 @@
 #include "ground_targets.h"
 #include "resources.h"
 #include "projectiles.h"
-#include "tile_mode2.h"
 #include "sprite_mode5.h"
+#include "tile_mode2.h"
 #include "text_mode1.h"
+#include "menu.h"
 
 static bool init_graphics(void)
 {
@@ -91,14 +92,18 @@ int main(void)
         return 1;
     }
 
-    flight_init();
+    menu_init();
 
     while (true) {
         wait_for_vsync();
 
         input_poll(&actions);
 
-        update_player(&actions);
-        update_player_projectiles(&actions);
+        if (menu_is_active()) {
+            menu_update(&actions);
+        } else {
+            update_player(&actions);
+            update_player_projectiles(&actions);
+        }
     }
 }
