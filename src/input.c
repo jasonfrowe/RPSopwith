@@ -190,7 +190,7 @@ static bool load_button_mappings(void)
     }
 
     count = fgetc(fp);
-    if (count <= 0 || count > ACTION_COUNT) {
+    if (count <= 0) {
         fclose(fp);
         return false;
     }
