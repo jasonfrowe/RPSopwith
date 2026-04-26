@@ -1,9 +1,13 @@
 #include <rp6502.h>
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "text_mode1.h"
 #include "constants.h"
 #include "sprite_mode5.h"
 
 unsigned TEXT_CONFIG;
+static int16_t s_score = 0;
 
 // Score values for game events
 #define SCORE_BUILDING           100
@@ -18,6 +22,70 @@ void text_mode1_clear(void) {
         RIA.rw0 = 0x20;  // space glyph
         RIA.rw0 = 0x00;  // bg=0 (transparent), fg=0 (transparent)
     }
+}
+
+void text_mode1_put_string(uint8_t col, uint8_t row, uint8_t color, const char *str)
+{
+    unsigned addr = TEXT_DATA + ((unsigned)row * TEXT_WIDTH_CHARS + col) * 2u;
+
+    RIA.addr0 = addr;
+    RIA.step0 = 1;
+    while (*str && col < TEXT_WIDTH_CHARS) {
+        RIA.rw0 = (uint8_t)*str++;
+        RIA.rw0 = color;
+        ++col;
+    }
+}
+
+void text_mode1_render_score(void)
+{
+    char buf[8];
+    int16_t val = s_score;
+    bool negative = (val < 0);
+    uint8_t pos = 7u;
+    uint8_t score_col = 0u;
+    uint8_t score_row = (uint8_t)(TEXT_HEIGHT_CHARS - 4u);
+
+    buf[pos] = '\0';
+    if (negative) {
+        val = (int16_t)-val;
+    }
+
+    if (val == 0) {
+        buf[--pos] = '0';
+    } else {
+        while (val > 0 && pos > 0u) {
+            buf[--pos] = (char)('0' + (val % 10));
+            val = (int16_t)(val / 10);
+        }
+    }
+    if (negative && pos > 0u) {
+        buf[--pos] = '-';
+    }
+
+    text_mode1_put_string(0, score_row, 0x0B, "       ");
+    for (uint8_t p = (uint8_t)(7u - pos); p < 7u; ++p) {
+        (void)p;
+        text_mode1_put_string(score_col++, score_row, 0x0B, " ");
+    }
+    text_mode1_put_string(score_col, score_row, 0x0B, &buf[pos]);
+}
+
+void text_mode1_add_score(int16_t delta)
+{
+    s_score = (int16_t)(s_score + delta);
+    text_mode1_render_score();
+}
+
+void text_mode1_reset_score(void)
+{
+    s_score = 0;
+    text_mode1_render_score();
+}
+
+void text_mode1_score_crash(void)
+{
+    text_mode1_add_score(SCORE_CRASH);
 }
 
 void text_mode1_init(void) {
@@ -47,4 +115,5 @@ void text_mode1_init(void) {
     }
 
     text_mode1_clear();
+    text_mode1_render_score();
 }

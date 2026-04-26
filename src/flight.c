@@ -5,7 +5,9 @@
 
 #include "constants.h"
 #include "flight.h"
+#include "ground_targets.h"
 #include "sprite_mode5.h"
+#include "text_mode1.h"
 #include "tile_mode2.h"
 
 enum {
@@ -379,6 +381,19 @@ static void mark_plane_crash(uint16_t crash_world_x, int16_t crash_center_y,
     s_crash_explosion_big = big_explosion;
 }
 
+static void queue_target_hit_explosion(uint16_t hit_world_x,
+                                       int16_t hit_center_y,
+                                       int16_t score_delta,
+                                       ground_target_hit_type_t hit_type)
+{
+    text_mode1_add_score(score_delta);
+    s_crash_explosion_pending = true;
+    s_crash_explosion_world_x = hit_world_x;
+    s_crash_explosion_center_y = hit_center_y;
+    s_crash_explosion_apply_crater = false;
+    s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
+}
+
 static void reset_plane_to_home(void)
 {
     memset(&s_flight, 0, sizeof(s_flight));
@@ -438,6 +453,11 @@ static void flight_tick_10hz(const input_actions_t *actions)
     }
 
     if (s_flight.falling) {
+        uint16_t hit_world_x = 0u;
+        int16_t hit_center_y = 0;
+        int16_t score_delta = 0;
+        ground_target_hit_type_t hit_type;
+
         if (consume_flip_repeat(actions->flip != 0u)) {
             s_flight.plane_orient = !s_flight.plane_orient;
         }
@@ -449,6 +469,13 @@ static void flight_tick_10hz(const input_actions_t *actions)
         }
         s_flight.plane_pitch = (int8_t)pitch_from_velocity(s_flight.plane_orient ? -1 : 1,
                                                            s_flight.plane_vy);
+
+        hit_type = ground_targets_check_plane_collision(s_flight.world_x, s_flight.plane_y,
+                                                        &hit_world_x, &hit_center_y,
+                                                        &score_delta);
+        if (hit_type != GROUND_TARGET_HIT_NONE) {
+            queue_target_hit_explosion(hit_world_x, hit_center_y, score_delta, hit_type);
+        }
 
         if (plane_collides_with_terrain(s_flight.plane_y)) {
             mark_plane_crash(s_flight.world_x,
@@ -578,6 +605,11 @@ static void flight_tick_10hz(const input_actions_t *actions)
                              false);
         }
     } else {
+        uint16_t hit_world_x = 0u;
+        int16_t hit_center_y = 0;
+        int16_t score_delta = 0;
+        ground_target_hit_type_t hit_type;
+
         s_flight.plane_vy = (int8_t)(-dy);
         s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.plane_vy);
 
@@ -591,6 +623,16 @@ static void flight_tick_10hz(const input_actions_t *actions)
                              (int16_t)(s_flight.plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
                              true,
                              false);
+        }
+
+        if (!s_flight.crashed) {
+            hit_type = ground_targets_check_plane_collision(s_flight.world_x, s_flight.plane_y,
+                                                            &hit_world_x, &hit_center_y,
+                                                            &score_delta);
+            if (hit_type != GROUND_TARGET_HIT_NONE) {
+                queue_target_hit_explosion(hit_world_x, hit_center_y, score_delta, hit_type);
+                start_falling_from_damage();
+            }
         }
     }
 
