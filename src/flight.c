@@ -449,6 +449,23 @@ static void bounce_then_fall_from_enemy(uint16_t enemy_world_x)
     projectiles_spawn_crash_explosion(s_flight.world_x, impact_center_y, false);
 }
 
+static void bounce_while_falling_from_enemy(uint16_t enemy_world_x)
+{
+    int16_t sep_dx = wrapped_world_delta(enemy_world_x, s_flight.world_x);
+    int8_t bounce_dx = (sep_dx >= 0) ? 5 : -5;
+    int16_t impact_center_y = (int16_t)(s_flight.plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+
+    s_flight.world_x = wrap_world_x_add(s_flight.world_x, (int16_t)(bounce_dx * 2));
+    s_flight.fall_dx = bounce_dx;
+    if (s_flight.fall_dy > -4) {
+        s_flight.fall_dy = -4;
+    }
+    s_flight.plane_vy = s_flight.fall_dy;
+    s_flight.plane_orient = bounce_dx < 0;
+    s_flight.plane_pitch = s_flight.plane_orient ? 8 : 0;
+    projectiles_spawn_crash_explosion(s_flight.world_x, impact_center_y, false);
+}
+
 static void reset_plane_to_home(void)
 {
     memset(&s_flight, 0, sizeof(s_flight));
@@ -519,6 +536,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
     }
 
     if (s_flight.falling) {
+        uint16_t enemy_hit_world_x = 0u;
         uint16_t hit_world_x = 0u;
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
@@ -540,6 +558,16 @@ static void flight_tick_10hz(const input_actions_t *actions)
         s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.fall_dy);
         s_flight.plane_vy = s_flight.fall_dy;
         s_flight.plane_pitch = (int8_t)pitch_from_velocity(s_flight.fall_dx, s_flight.fall_dy);
+
+        if (enemy_planes_check_player_collision(s_flight.world_x,
+                                                s_flight.plane_y,
+                                                s_flight.prev_world_x,
+                                                s_flight.prev_plane_y,
+                                                &enemy_hit_world_x,
+                                                0,
+                                                0)) {
+            bounce_while_falling_from_enemy(enemy_hit_world_x);
+        }
 
         if ((s_flight.fall_dy > 0) && (s_flight.fall_dx != 0)) {
             if (s_flight.plane_orient ^ (s_flight.fall_dx < 0)) {
