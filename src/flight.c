@@ -606,6 +606,9 @@ static void flight_tick_10hz(const input_actions_t *actions)
         if (s_flight.airborne) {
             if (!s_flight.stalled_high && nspeed < MIN_SPEED) {
                 --nspeed;
+                if (s_gravity_bias[nangle] <= -3 && nspeed > 0) {
+                    --nspeed;
+                }
                 update = true;
             } else {
                 speed_limit = (int16_t)(MIN_SPEED + s_flight.throttle + s_gravity_bias[nangle]);
@@ -643,6 +646,14 @@ static void flight_tick_10hz(const input_actions_t *actions)
 
     if (!s_flight.airborne) {
         grounded_y = plane_top_y_for_ground(terrain_y);
+
+        if (s_flight.speed > 0u && plane_collides_with_terrain(grounded_y)) {
+            mark_plane_crash(s_flight.world_x,
+                             (int16_t)(grounded_y + (PLAYER_SPRITE_SIZE_PX / 2)),
+                             true,
+                             false);
+        }
+
         s_flight.plane_y = grounded_y;
         s_flight.plane_vy = 0;
 
