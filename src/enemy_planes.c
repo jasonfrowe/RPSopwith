@@ -799,7 +799,7 @@ void enemy_planes_init(void)
     s_enemies[0].home_x = 588u;
     s_enemies[0].territory_l = 48u;
     s_enemies[0].territory_r = 1154u;
-    s_enemies[0].orient = false;
+    s_enemies[0].orient = true;
 
     s_enemies[1].home_x = 1720u;
     s_enemies[1].territory_l = 1155u;
@@ -880,7 +880,7 @@ bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
         int16_t top_y;
         int16_t bot_y;
 
-        if (e->destroyed || e->falling || e->crashed) {
+        if (e->destroyed || e->crashed) {
             continue;
         }
 
