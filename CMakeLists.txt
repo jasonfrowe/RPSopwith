@@ -24,28 +24,6 @@ rp6502_executable(RPSopwith
 )
 
 target_sources(RPSopwith PRIVATE
-    src/ambient_birds.c
-    src/ambient_flocks.c
-    src/enemy_planes.c
     src/main.c
-    src/input.c
-    src/flight.c
-    src/ground_targets.c
-    src/projectiles.c
-    src/resources.c
-    src/sprite_mode5.c
-    src/tile_mode2.c
-    src/text_mode1.c
-)
-
-# Safe size-focused flags for 6502: keep code/data in separate sections
-# and let the linker drop anything unreferenced.
-target_compile_options(RPSopwith PRIVATE
-    -ffunction-sections
-    -fdata-sections
-)
-
-target_link_options(RPSopwith PRIVATE
-    -Wl,--gc-sections
 )
 
