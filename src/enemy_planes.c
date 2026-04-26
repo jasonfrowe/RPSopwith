@@ -41,13 +41,17 @@ typedef struct enemy_plane_s {
 enum {
     WORLD_WIDTH_PX = (GROUND_WIDTH * 8),
     ENEMY_FPS_DIV = 6,
-    MIN_SPEED = 4,
-    MAX_SPEED = 8,
+    MIN_SPEED = 5,
+    MAX_SPEED = 10,
     MAX_THROTTLE = 4,
     CLOSE_RANGE_PX = 32,
     HOME_RANGE_PX = 16,
     ENEMY_MIN_CLEARANCE_PX = 28,
     ENEMY_TOP_LIMIT_PX = 28,
+    ENEMY_LOITER_ALTITUDE_PX = 42,
+    ENEMY_APPROACH_ALTITUDE_PX = 34,
+    ENEMY_MIN_ALTITUDE_PX = 18,
+    ENEMY_DIVE_COMMIT_RANGE_PX = 96,
     ENEMY_FIRE_SPEED_BONUS = 10,
     ENEMY_SHOT_COOLDOWN_TICKS = 3,
     ENEMY_RESPAWN_TICKS = 24,
@@ -263,10 +267,25 @@ static void pick_target(const enemy_plane_t *e, bool has_target,
     if (has_target) {
         int8_t pvx;
         int8_t pvy;
+        int16_t target_y;
+        int16_t dx_to_player;
 
         velocity_from_angle(player_pitch_for_enemy(), flight_plane_speed(), &pvx, &pvy);
         *ax = (int16_t)(player_x - ((CLOSE_RANGE_PX * pvx) / 8));
-        *ay = (int16_t)(flight_plane_y_physics() - ((CLOSE_RANGE_PX * pvy) / 8));
+        target_y = (int16_t)(flight_plane_y_physics() - ((CLOSE_RANGE_PX * pvy) / 8));
+
+        dx_to_player = abs_i16(wrapped_world_delta(e->world_x, player_x));
+        if (dx_to_player > ENEMY_DIVE_COMMIT_RANGE_PX) {
+            int16_t terrain_y = flight_terrain_y_at(e->world_x);
+            int16_t approach_top = (int16_t)(terrain_y -
+                                             PLAYER_GROUND_CONTACT_FROM_TOP_PX -
+                                             ENEMY_APPROACH_ALTITUDE_PX);
+            if (target_y > approach_top) {
+                target_y = approach_top;
+            }
+        }
+
+        *ay = target_y;
         return;
     }
 
@@ -274,7 +293,7 @@ static void pick_target(const enemy_plane_t *e, bool has_target,
         int16_t home_sweep = ((s_tick_count_10hz & 0x1Fu) < 16u) ? 24 : -24;
 
         *ax = (int16_t)wrap_world_x((int16_t)e->home_x + home_sweep);
-        *ay = (int16_t)(e->home_y - 28);
+        *ay = (int16_t)(e->home_y - ENEMY_LOITER_ALTITUDE_PX);
     }
 }
 
@@ -284,7 +303,10 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
     int16_t ax;
     int16_t ay;
     int16_t crange[3];
+    int16_t calt[3];
+    bool unsafe_dive[3];
     int16_t rmin;
+    bool found_choice;
     uint8_t best_i = 0u;
 
     pick_target(e, has_target, &ax, &ay);
@@ -296,27 +318,48 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
         int8_t cvy;
         uint16_t nx;
         int16_t ny;
+        int16_t candidate_dx_to_player;
 
         velocity_from_angle(nangle, nspeed, &cvx, &cvy);
         nx = wrap_world_x((int16_t)e->world_x + cvx);
         ny = (int16_t)(e->plane_y + cvy);
 
         crange[i] = range_metric((int16_t)nx, ny, ax, ay);
+        calt[i] = (int16_t)(flight_terrain_y_at(nx) - (ny + PLAYER_GROUND_CONTACT_FROM_TOP_PX));
+
+        candidate_dx_to_player = abs_i16(wrapped_world_delta(nx, flight_world_x_physics()));
+        unsafe_dive[i] = (calt[i] < ENEMY_MIN_ALTITUDE_PX) &&
+                         (!has_target || candidate_dx_to_player > ENEMY_DIVE_COMMIT_RANGE_PX);
     }
 
     rmin = 32767;
+    found_choice = false;
     for (uint8_t i = 0; i < 3u; ++i) {
-        if (crange[i] >= 0 && crange[i] < rmin) {
+        if (!unsafe_dive[i] && crange[i] >= 0 && crange[i] < rmin) {
             rmin = crange[i];
             best_i = i;
+            found_choice = true;
         }
     }
 
-    if (rmin == 32767) {
+    if (!found_choice) {
         rmin = -32767;
         for (uint8_t i = 0; i < 3u; ++i) {
-            if (crange[i] < 0 && crange[i] > rmin) {
+            if (!unsafe_dive[i] && crange[i] < 0 && crange[i] > rmin) {
                 rmin = crange[i];
+                best_i = i;
+                found_choice = true;
+            }
+        }
+    }
+
+    if (!found_choice) {
+        int16_t best_alt = calt[0];
+        best_i = 0u;
+
+        for (uint8_t i = 1; i < 3u; ++i) {
+            if (calt[i] > best_alt) {
+                best_alt = calt[i];
                 best_i = i;
             }
         }
