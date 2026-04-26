@@ -4,8 +4,10 @@
 #include <string.h>
 
 #include "constants.h"
+#include "enemy_planes.h"
 #include "flight.h"
 #include "ground_targets.h"
+#include "projectiles.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
 #include "tile_mode2.h"
@@ -421,11 +423,24 @@ static void update_render_interpolation(void)
 {
     int16_t world_delta = wrapped_world_delta(s_flight.prev_world_x, s_flight.world_x);
     int16_t plane_delta_y = (int16_t)(s_flight.plane_y - s_flight.prev_plane_y);
-    int16_t world_pred = (int16_t)(s_flight.world_x + (int16_t)((world_delta * (int16_t)s_tick_div) / FLIGHT_FPS_DIV));
-    int16_t plane_pred_y = (int16_t)(s_flight.plane_y + (int16_t)((plane_delta_y * (int16_t)s_tick_div) / FLIGHT_FPS_DIV));
+    int16_t interp_world;
+    int16_t interp_plane;
+    int16_t half = (int16_t)(FLIGHT_FPS_DIV / 2);
 
-    s_render_world_x = wrap_world_x(world_pred);
-    s_render_plane_y = plane_pred_y;
+    if (world_delta >= 0) {
+        interp_world = (int16_t)(((world_delta * (int16_t)s_tick_div) + half) / FLIGHT_FPS_DIV);
+    } else {
+        interp_world = (int16_t)(((world_delta * (int16_t)s_tick_div) - half) / FLIGHT_FPS_DIV);
+    }
+
+    if (plane_delta_y >= 0) {
+        interp_plane = (int16_t)(((plane_delta_y * (int16_t)s_tick_div) + half) / FLIGHT_FPS_DIV);
+    } else {
+        interp_plane = (int16_t)(((plane_delta_y * (int16_t)s_tick_div) - half) / FLIGHT_FPS_DIV);
+    }
+
+    s_render_world_x = wrap_world_x((int16_t)(s_flight.prev_world_x + interp_world));
+    s_render_plane_y = (int16_t)(s_flight.prev_plane_y + interp_plane);
 }
 
 static void flight_tick_10hz(const input_actions_t *actions)
@@ -609,6 +624,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
         ground_target_hit_type_t hit_type;
+        bool hit_enemy;
 
         s_flight.plane_vy = (int8_t)(-dy);
         s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.plane_vy);
@@ -632,6 +648,17 @@ static void flight_tick_10hz(const input_actions_t *actions)
             if (hit_type != GROUND_TARGET_HIT_NONE) {
                 queue_target_hit_explosion(hit_world_x, hit_center_y, score_delta, hit_type);
                 start_falling_from_damage();
+            }
+
+            if (!s_flight.falling && !s_flight.crashed) {
+                hit_enemy = enemy_planes_check_player_collision(s_flight.world_x,
+                                                                s_flight.plane_y,
+                                                                0,
+                                                                0,
+                                                                0);
+                if (hit_enemy) {
+                    start_falling_from_damage();
+                }
             }
         }
     }
@@ -754,25 +781,18 @@ void flight_apply_debris_hit(void)
         return;
     }
 
-    s_crash_explosion_pending = true;
-    s_crash_explosion_world_x = s_flight.world_x;
-    s_crash_explosion_center_y = (int16_t)(s_flight.plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
-    s_crash_explosion_apply_crater = false;
-    s_crash_explosion_big = false;
     start_falling_from_damage();
 }
 
 void flight_apply_bomb_hit(uint16_t impact_world_x, int16_t impact_center_y)
 {
+    (void)impact_world_x;
+    (void)impact_center_y;
+
     if (s_flight.crashed || s_flight.falling || !s_flight.airborne) {
         return;
     }
 
-    s_crash_explosion_pending = true;
-    s_crash_explosion_world_x = impact_world_x;
-    s_crash_explosion_center_y = impact_center_y;
-    s_crash_explosion_apply_crater = false;
-    s_crash_explosion_big = false;
     start_falling_from_damage();
 }
 

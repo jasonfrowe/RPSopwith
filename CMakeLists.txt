@@ -27,6 +27,7 @@ target_sources(RPSopwith PRIVATE
     src/main.c
     src/input.c
     src/flight.c
+    src/enemy_planes.c
     src/resources.c
     src/projectiles.c
     src/ground_targets.c
