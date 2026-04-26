@@ -431,6 +431,25 @@ static void queue_target_hit_explosion(uint16_t hit_world_x,
     s_crash_explosion_big = (hit_type == GROUND_TARGET_HIT_EXPLOSIVE);
 }
 
+static void bounce_from_enemy(uint16_t enemy_world_x)
+{
+    int16_t dx = wrapped_world_delta(s_flight.world_x, enemy_world_x);
+
+    if (dx >= 0) {
+        s_flight.world_x = wrap_world_x((int16_t)s_flight.world_x - 8);
+        s_flight.plane_orient = true;
+        s_flight.plane_pitch = 8;
+    } else {
+        s_flight.world_x = wrap_world_x((int16_t)s_flight.world_x + 8);
+        s_flight.plane_orient = false;
+        s_flight.plane_pitch = 0;
+    }
+
+    if (s_flight.speed > flight_min_speed()) {
+        --s_flight.speed;
+    }
+}
+
 static void reset_plane_to_home(void)
 {
     memset(&s_flight, 0, sizeof(s_flight));
@@ -730,20 +749,14 @@ static void flight_tick_10hz(const input_actions_t *actions)
     }
 
     if (!s_flight.crashed) {
+        uint16_t enemy_hit_world_x = 0u;
         bool hit_enemy = enemy_planes_check_player_collision(s_flight.world_x,
                                                               s_flight.plane_y,
-                                                              0,
+                                                              &enemy_hit_world_x,
                                                               0,
                                                               0);
         if (hit_enemy) {
-            if (s_flight.falling) {
-                mark_plane_crash(s_flight.world_x,
-                                 (int16_t)(s_flight.plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
-                                 false,
-                                 false);
-            } else {
-                start_falling_from_damage();
-            }
+            bounce_from_enemy(enemy_hit_world_x);
         }
     }
 

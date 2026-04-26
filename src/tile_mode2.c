@@ -11,10 +11,11 @@ unsigned TILE_GROUND_CONFIG;
 unsigned TILE_HUD_CONFIG;
 
 static uint8_t s_next_dynamic_tile = 255u;
+static bool s_ground_map_backup_ready = false;
 
 enum {
     TILE_SKY = 0,
-    MIN_DYNAMIC_POOL_SIZE = 24,
+    MIN_DYNAMIC_POOL_SIZE = 24
 };
 
 static uint8_t xram_read_u8(unsigned addr)
@@ -174,9 +175,29 @@ static void init_dynamic_pool_start(void)
     s_next_dynamic_tile = 255u;
 }
 
+static void backup_ground_map_if_needed(void)
+{
+    if (s_ground_map_backup_ready) {
+        return;
+    }
+
+    for (unsigned i = 0; i < GROUND_DATA_SIZE; ++i) {
+        xram_write_u8((unsigned)GROUND_MAP_BACKUP_ADDR + i,
+                      xram_read_u8(GROUND_DATA + i));
+    }
+
+    s_ground_map_backup_ready = true;
+}
+
 void tile_mode2_reset_ground_map(void)
 {
-    // No-op in low-RAM mode; keep dynamic crater state for the current run.
+    if (s_ground_map_backup_ready) {
+        for (unsigned i = 0; i < GROUND_DATA_SIZE; ++i) {
+            xram_write_u8(GROUND_DATA + i,
+                          xram_read_u8((unsigned)GROUND_MAP_BACKUP_ADDR + i));
+        }
+    }
+
     init_dynamic_pool_start();
 }
 
@@ -238,6 +259,7 @@ void tile_mode2_init(void) {
         RIA.rw0 = tile_bg_palette[i] >> 8;
     }
 
+    backup_ground_map_if_needed();
     init_dynamic_pool_start();
 
     // Start at the player's home position so the terrain is correct on the first frame

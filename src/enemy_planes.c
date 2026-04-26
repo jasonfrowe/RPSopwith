@@ -916,27 +916,73 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
 
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         enemy_plane_t *e = &s_enemies[i];
-        int16_t dx;
-        int16_t enemy_center_y;
+        int16_t dx_now;
+        int16_t dx_prev;
+        int16_t dx_mid;
+        int16_t enemy_center_y_now;
+        int16_t enemy_center_y_prev;
+        int16_t enemy_center_y_mid;
         int16_t player_center_y;
-        int16_t dy;
+        int16_t dy_now;
+        int16_t dy_prev;
+        int16_t dy_mid;
+        bool collided = false;
+        uint16_t contact_world_x;
+        int16_t contact_center_y;
 
         if (e->destroyed) {
             continue;
         }
 
-        dx = wrapped_world_delta(e->world_x, player_world_x);
-        enemy_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        enemy_center_y_now = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        enemy_center_y_prev = (int16_t)(e->prev_plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        enemy_center_y_mid = (int16_t)((enemy_center_y_now + enemy_center_y_prev) / 2);
         player_center_y = (int16_t)(player_plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
-        dy = (int16_t)(enemy_center_y - player_center_y);
 
-        if (dx >= -10 && dx <= 10 && dy >= -10 && dy <= 10) {
-            enemy_start_falling(e);
+        dx_now = wrapped_world_delta(e->world_x, player_world_x);
+        dx_prev = wrapped_world_delta(e->prev_world_x, player_world_x);
+        dx_mid = wrapped_world_delta((uint16_t)((e->world_x + e->prev_world_x) / 2), player_world_x);
+
+        dy_now = (int16_t)(enemy_center_y_now - player_center_y);
+        dy_prev = (int16_t)(enemy_center_y_prev - player_center_y);
+        dy_mid = (int16_t)(enemy_center_y_mid - player_center_y);
+
+        if (dx_now >= -10 && dx_now <= 10 && dy_now >= -10 && dy_now <= 10) {
+            collided = true;
+            contact_world_x = e->world_x;
+            contact_center_y = enemy_center_y_now;
+        } else if (dx_prev >= -10 && dx_prev <= 10 && dy_prev >= -10 && dy_prev <= 10) {
+            collided = true;
+            contact_world_x = e->prev_world_x;
+            contact_center_y = enemy_center_y_prev;
+        } else if (dx_mid >= -10 && dx_mid <= 10 && dy_mid >= -10 && dy_mid <= 10) {
+            collided = true;
+            contact_world_x = (uint16_t)((e->world_x + e->prev_world_x) / 2);
+            contact_center_y = enemy_center_y_mid;
+        }
+
+        if (collided) {
+            // Separate both planes so they bounce apart instead of overlapping.
+            if (dx_now >= 0) {
+                e->world_x = wrap_world_x((int16_t)e->world_x + 8);
+                e->orient = false;
+                e->angle = 0u;
+            } else {
+                e->world_x = wrap_world_x((int16_t)e->world_x - 8);
+                e->orient = true;
+                e->angle = 8u;
+            }
+
+            if (e->speed > MIN_SPEED) {
+                --e->speed;
+            }
+            velocity_from_angle(e->angle, e->speed, &e->vx, &e->vy);
+
             if (hit_world_x != 0) {
-                *hit_world_x = e->world_x;
+                *hit_world_x = contact_world_x;
             }
             if (hit_center_y != 0) {
-                *hit_center_y = enemy_center_y;
+                *hit_center_y = contact_center_y;
             }
             if (big_explosion != 0) {
                 *big_explosion = false;
