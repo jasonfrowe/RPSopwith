@@ -11,6 +11,7 @@
 typedef struct ground_target_s {
     uint16_t world_x;
     uint8_t orient;
+    uint8_t type;
     uint8_t frame_standing;
     uint8_t frame_destroyed;
     int8_t y_offset_px;
@@ -34,40 +35,40 @@ enum {
     TARGET_LEVEL2_FIRE_PERIOD_SCALE = 5u,
     TARGET_LEVEL3_FIRE_PERIOD_SCALE = 3u,
     TARGET_LEVEL4_PLUS_FIRE_PERIOD_SCALE = 2u,
-    TARGET_MAX_ORIENT = 8u,
-    TARGET_TYPE_TRUCK = 4u,
-    TARGET_TYPE_TANKER_TRUCK = 5u,
-    TARGET_TYPE_FLAG = 6u,
-    TARGET_TYPE_TENT = 7u,
-    TARGET_TYPE_OX = 8u,
+    TARGET_TYPE_BUILDING = 0u,
+    TARGET_TYPE_EXPLOSIVE_BUILDING = 1u,
+    TARGET_TYPE_TRUCK = 2u,
+    TARGET_TYPE_TANKER_TRUCK = 3u,
+    TARGET_TYPE_OX = 4u,
+    TARGET_TYPE_FRIENDLY_BUILDING = 5u,
     TARGET_OX_HITBOX_TOP_OFFSET_PX = 8,
     TARGET_OX_HITBOX_WIDTH_PX = 12,
     TARGET_OX_HITBOX_HEIGHT_PX = 6
 };
 
 static const ground_target_t s_targets[] = {
-    {191,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {284,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {409,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {539,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {685,  3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {807,  0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {934,  1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {1210, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_EXPLOSIVE_BUILDING},
-    {1240, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
-    {1376, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
-    {1440, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
-    {1550, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {1608, 8, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
-    {1750, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {1780, 2, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_EXPLOSIVE_BUILDING},
-    {2024, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2159, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2279, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2390, 3, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2549, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2678, 0, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
-    {2763, 1, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {191,  1, TARGET_TYPE_BUILDING, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {284,  3, TARGET_TYPE_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {409,  1, TARGET_TYPE_BUILDING, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {539,  1, TARGET_TYPE_TRUCK, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {685,  3, TARGET_TYPE_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {807,  0, TARGET_TYPE_BUILDING, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {934,  1, TARGET_TYPE_BUILDING, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {1210, 2, TARGET_TYPE_FRIENDLY_BUILDING, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_EXPLOSIVE_BUILDING},
+    {1240, 0, TARGET_TYPE_FRIENDLY_BUILDING, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
+    {1376, 8, TARGET_TYPE_OX, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
+    {1440, 3, TARGET_TYPE_FRIENDLY_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, PLAYER_TARGETS_PALETTE_ADDR, -SCORE_DELTA_BUILDING},
+    {1550, 3, TARGET_TYPE_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {1608, 8, TARGET_TYPE_OX, OX_FRAME_STANDING, OX_FRAME_DESTROYED, 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_OX},
+    {1750, 0, TARGET_TYPE_TRUCK, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {1780, 2, TARGET_TYPE_EXPLOSIVE_BUILDING, FRAME_STANDING(2), FRAME_DESTROYED(2), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_EXPLOSIVE_BUILDING},
+    {2024, 1, TARGET_TYPE_TANKER_TRUCK, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2159, 1, TARGET_TYPE_BUILDING, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2279, 3, TARGET_TYPE_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2390, 3, TARGET_TYPE_BUILDING, FRAME_STANDING(3), FRAME_DESTROYED(3), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2549, 0, TARGET_TYPE_BUILDING, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2678, 0, TARGET_TYPE_TRUCK, FRAME_STANDING(0), FRAME_DESTROYED(0), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
+    {2763, 1, TARGET_TYPE_BUILDING, FRAME_STANDING(1), FRAME_DESTROYED(1), 0, TARGETS_PALETTE_ADDR, SCORE_DELTA_BUILDING},
 };
 
 static uint8_t s_target_count;
@@ -81,10 +82,6 @@ static uint16_t s_tick_count_10hz;
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
     0, -98, -181, -237, -256, -237, -181, -98
-};
-
-static const uint8_t s_target_aggression[TARGET_MAX_ORIENT + 1u] = {
-    2u, 2u, 2u, 2u, 5u, 5u, 0u, 0u, 0u
 };
 
 static int16_t abs_i16(int16_t v)
@@ -123,16 +120,37 @@ static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_wor
 
 static bool target_is_hostile(const ground_target_t *target)
 {
-    return target->score_delta > 0 && target->orient != 8u;
+    return target->score_delta > 0 && target->type != TARGET_TYPE_OX;
 }
 
 static uint8_t target_aggression(const ground_target_t *target)
 {
-    if (target->orient <= TARGET_MAX_ORIENT) {
-        return s_target_aggression[target->orient];
+    if (target->type == TARGET_TYPE_TRUCK || target->type == TARGET_TYPE_TANKER_TRUCK) {
+        return 5u;
+    }
+
+    if (target->type == TARGET_TYPE_BUILDING || target->type == TARGET_TYPE_EXPLOSIVE_BUILDING) {
+        return 2u;
     }
 
     return 0u;
+}
+
+static bool target_enabled_for_level(uint8_t target_index, const ground_target_t *target)
+{
+    if (!target_is_hostile(target)) {
+        return false;
+    }
+
+    if (s_level <= 2u) {
+        return (target_index & 1u) == 0u;
+    }
+
+    if (s_level == 3u) {
+        return (target_index & 3u) != 3u;
+    }
+
+    return true;
 }
 
 static uint8_t angle_from_delta(int16_t dx, int16_t dy)
@@ -174,9 +192,10 @@ static int16_t target_fire_distance_metric(int16_t dx, int16_t dy)
     return (int16_t)(dx + dy + (dy >> 1));
 }
 
-static uint8_t target_fire_period_ticks(uint8_t aggression)
+static uint8_t target_fire_period_ticks(uint8_t aggression, uint8_t target_type)
 {
     uint8_t scale;
+    uint8_t period;
 
     if (s_level <= 2u) {
         scale = TARGET_LEVEL2_FIRE_PERIOD_SCALE;
@@ -186,7 +205,13 @@ static uint8_t target_fire_period_ticks(uint8_t aggression)
         scale = TARGET_LEVEL4_PLUS_FIRE_PERIOD_SCALE;
     }
 
-    return (uint8_t)(aggression * scale);
+    period = (uint8_t)(aggression * scale);
+
+    if ((target_type == TARGET_TYPE_TRUCK || target_type == TARGET_TYPE_TANKER_TRUCK) && period > 1u) {
+        --period;
+    }
+
+    return period;
 }
 
 static void update_target_fire(void)
@@ -213,7 +238,7 @@ static void update_target_fire(void)
         uint8_t angle;
         uint8_t aggression;
 
-        if (s_target_destroyed[i] || !target_is_hostile(target)) {
+        if (s_target_destroyed[i] || !target_enabled_for_level(i, target)) {
             continue;
         }
 
@@ -224,10 +249,6 @@ static void update_target_fire(void)
 
         if (s_target_fire_cooldown[i] > 0u) {
             --s_target_fire_cooldown[i];
-            continue;
-        }
-
-        if (s_level == 2u && (s_tick_count_10hz % aggression) != (uint16_t)(aggression - 1u)) {
             continue;
         }
 
@@ -245,7 +266,7 @@ static void update_target_fire(void)
         shot_world_x = wrap_world_x((int16_t)target->world_x + (TARGETS_SPRITE_SIZE_PX / 2));
         angle = angle_from_delta(dx, dy);
         if (projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u)) {
-            s_target_fire_cooldown[i] = target_fire_period_ticks(aggression);
+            s_target_fire_cooldown[i] = target_fire_period_ticks(aggression, target->type);
         }
     }
 }
@@ -372,10 +393,10 @@ ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t
                 *score_delta = s_targets[i].score_delta;
             }
 
-            if (s_targets[i].orient == 8u) {
+            if (s_targets[i].type == TARGET_TYPE_OX) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;
             }
-            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+            if (s_targets[i].type == TARGET_TYPE_EXPLOSIVE_BUILDING) {
                 return GROUND_TARGET_HIT_EXPLOSIVE;
             }
             return GROUND_TARGET_HIT_NORMAL;
@@ -426,10 +447,10 @@ ground_target_hit_type_t ground_targets_check_shot_hit(uint16_t shot_world_x, in
                 *score_delta = s_targets[i].score_delta;
             }
 
-            if (s_targets[i].orient == 8u) {
+            if (s_targets[i].type == TARGET_TYPE_OX) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;
             }
-            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+            if (s_targets[i].type == TARGET_TYPE_EXPLOSIVE_BUILDING) {
                 return GROUND_TARGET_HIT_EXPLOSIVE;
             }
             return GROUND_TARGET_HIT_NORMAL;
@@ -469,7 +490,7 @@ ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_wor
 
         top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
                           s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
-        if (s_targets[i].orient == TARGET_TYPE_OX) {
+        if (s_targets[i].type == TARGET_TYPE_OX) {
             top_y = (int16_t)(top_y + TARGET_OX_HITBOX_TOP_OFFSET_PX);
             hit_width = TARGET_OX_HITBOX_WIDTH_PX;
             hit_height = TARGET_OX_HITBOX_HEIGHT_PX;
@@ -491,10 +512,10 @@ ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_wor
             if (score_delta != 0) {
                 *score_delta = s_targets[i].score_delta;
             }
-            if (s_targets[i].orient == 8u) {
+            if (s_targets[i].type == TARGET_TYPE_OX) {
                 return GROUND_TARGET_HIT_NO_EXPLOSION;
             }
-            if (s_targets[i].orient == 2u || s_targets[i].orient == 5u) {
+            if (s_targets[i].type == TARGET_TYPE_EXPLOSIVE_BUILDING) {
                 return GROUND_TARGET_HIT_EXPLOSIVE;
             }
             return GROUND_TARGET_HIT_NORMAL;

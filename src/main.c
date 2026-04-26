@@ -19,7 +19,8 @@ typedef enum game_mode_e {
     GAME_MODE_MENU = 0,
     GAME_MODE_PLAYING,
     GAME_MODE_LEVEL_COMPLETE,
-    GAME_MODE_GAME_OVER
+    GAME_MODE_GAME_OVER,
+    GAME_MODE_CAMPAIGN_COMPLETE
 } game_mode_t;
 
 enum {
@@ -29,6 +30,7 @@ enum {
     WIN_FRAME_RIGHT_BASE = 40u,
     WIN_FRAME_FLIPPED_BASE = 44u,
     GAME_OVER_DELAY_TICKS_10HZ = 40u,
+    CAMPAIGN_COMPLETE_DELAY_TICKS_10HZ = 72u,
     MAX_GAME_LEVEL = 10u,
     STATUS_ROW_MAIN = 14u,
     STATUS_ROW_SUB = 15u
@@ -104,6 +106,13 @@ static void show_game_over_text(void)
 {
     clear_status_rows();
     text_mode1_put_string(16, STATUS_ROW_MAIN, 13, "THE END");
+}
+
+static void show_campaign_complete_text(void)
+{
+    clear_status_rows();
+    text_mode1_put_string(11, STATUS_ROW_MAIN, 13, "CAMPAIGN COMPLETE");
+    text_mode1_put_string(16, STATUS_ROW_SUB, 11, "LEVEL 10");
 }
 
 static void show_level_complete_text(void)
@@ -199,6 +208,14 @@ static void enter_game_over_mode(void)
     show_game_over_text();
 }
 
+static void enter_campaign_complete_mode(void)
+{
+    s_game_mode = GAME_MODE_CAMPAIGN_COMPLETE;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = CAMPAIGN_COMPLETE_DELAY_TICKS_10HZ;
+    show_campaign_complete_text();
+}
+
 static void update_player_projectiles(const input_actions_t *actions)
 {
     projectiles_update(flight_world_x(), actions);
@@ -268,7 +285,11 @@ static void update_playing_mode(const input_actions_t *actions)
 
     if (!flight_is_crashed() && !flight_is_falling() &&
         ground_targets_all_enemy_targets_destroyed()) {
-        enter_level_complete_mode();
+        if (s_current_level >= MAX_GAME_LEVEL) {
+            enter_campaign_complete_mode();
+        } else {
+            enter_level_complete_mode();
+        }
     }
 }
 
@@ -287,7 +308,7 @@ static void update_nonplaying_mode(void)
 
     if (s_game_mode == GAME_MODE_LEVEL_COMPLETE) {
         advance_to_next_level();
-    } else if (s_game_mode == GAME_MODE_GAME_OVER) {
+    } else if (s_game_mode == GAME_MODE_GAME_OVER || s_game_mode == GAME_MODE_CAMPAIGN_COMPLETE) {
         activate_menu_scene();
     }
 }
