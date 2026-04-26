@@ -59,7 +59,10 @@
 #define GROUND_MAP_BACKUP_ADDR   (HUD_TILES + HUD_TILES_SIZE) // Address for backing up original terrain tile map
 #define GROUND_MAP_BACKUP_SIZE    GROUND_DATA_SIZE
 
-#define SPRITE_DATA_END        (GROUND_MAP_BACKUP_ADDR + GROUND_MAP_BACKUP_SIZE) // End of sprite and tile data in XRAM, start of dynamic allocations
+#define GROUND_PROFILE          0xC8D4U
+#define GROUND_PROFILE_SIZE     0x0BB8U            // 3000 bytes (pre-sampled terrain height at each world X pixel)
+
+#define SPRITE_DATA_END        (GROUND_PROFILE + GROUND_PROFILE_SIZE) // End of sprite and tile data in XRAM, start of dynamic allocations
 
 
 
