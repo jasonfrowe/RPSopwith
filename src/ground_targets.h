@@ -12,6 +12,7 @@ typedef enum ground_target_hit_type_e {
 } ground_target_hit_type_t;
 
 void ground_targets_init(void);
+void ground_targets_set_level(uint8_t level);
 void ground_targets_update(uint16_t camera_world_x);
 bool ground_targets_all_enemy_targets_destroyed(void);
 ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,

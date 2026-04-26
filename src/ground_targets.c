@@ -2,7 +2,9 @@
 #include <stdint.h>
 
 #include "constants.h"
+#include "flight.h"
 #include "ground_targets.h"
+#include "projectiles.h"
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 
@@ -26,7 +28,12 @@ enum {
     TARGET_VERTICAL_BIAS_PX = -1,
     SCORE_DELTA_BUILDING = 100,
     SCORE_DELTA_EXPLOSIVE_BUILDING = 200,
-    SCORE_DELTA_OX = -200
+    SCORE_DELTA_OX = -200,
+    TARGETS_FPS_DIV = 6u,
+    TARGET_MIN_FIRE_RANGE_PX = 120,
+    TARGET_MAX_VERTICAL_RANGE_PX = 80,
+    TARGET_COOLDOWN_BUILDING_TICKS = 24,
+    TARGET_COOLDOWN_ARMORED_TICKS = 16
 };
 
 static const ground_target_t s_targets[] = {
@@ -57,6 +64,19 @@ static const ground_target_t s_targets[] = {
 static uint8_t s_target_count;
 static int16_t s_target_ground_y[MAX_TARGETS];
 static bool s_target_destroyed[MAX_TARGETS];
+static uint8_t s_target_fire_cooldown[MAX_TARGETS];
+static uint8_t s_level = 1u;
+static uint8_t s_tick_div;
+
+static const int16_t s_sintab[16] = {
+    0, 98, 181, 237, 256, 237, 181, 98,
+    0, -98, -181, -237, -256, -237, -181, -98
+};
+
+static int16_t abs_i16(int16_t v)
+{
+    return (v < 0) ? (int16_t)(-v) : v;
+}
 
 static uint16_t wrap_world_x(int16_t x)
 {
@@ -87,6 +107,109 @@ static int16_t world_delta_to_screen_x(uint16_t obj_world_x, uint16_t camera_wor
     return dx;
 }
 
+static bool target_is_hostile(const ground_target_t *target)
+{
+    return target->score_delta > 0 && target->orient != 8u;
+}
+
+static uint8_t target_fire_cooldown_ticks(const ground_target_t *target)
+{
+    uint8_t cooldown = (target->orient == 2u || target->orient == 5u)
+        ? TARGET_COOLDOWN_ARMORED_TICKS
+        : TARGET_COOLDOWN_BUILDING_TICKS;
+
+    if (s_level > 2u) {
+        uint8_t level_bonus = (uint8_t)(s_level - 2u);
+        if (cooldown > (uint8_t)(6u + level_bonus)) {
+            cooldown = (uint8_t)(cooldown - level_bonus);
+        } else {
+            cooldown = 6u;
+        }
+    }
+
+    return cooldown;
+}
+
+static uint8_t angle_from_delta(int16_t dx, int16_t dy)
+{
+    int16_t best_score = -32767;
+    uint8_t best_angle = 0u;
+
+    for (uint8_t a = 0; a < 16u; ++a) {
+        int16_t dir_x = s_sintab[(uint8_t)((a + 4u) & 0x0Fu)];
+        int16_t dir_y = (int16_t)(-s_sintab[a]);
+        int16_t score = (int16_t)(dx * dir_x + dy * dir_y);
+
+        if (score > best_score) {
+            best_score = score;
+            best_angle = a;
+        }
+    }
+
+    return best_angle;
+}
+
+static void update_target_fire(void)
+{
+    uint16_t player_world_x;
+    int16_t player_center_y;
+    int16_t fire_range_px;
+
+    if (s_level < 2u || !flight_is_airborne() || flight_is_crashed() || flight_is_falling()) {
+        return;
+    }
+
+    player_world_x = flight_world_x_physics();
+    player_center_y = (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
+    fire_range_px = (int16_t)(TARGET_MIN_FIRE_RANGE_PX + ((s_level - 2u) * 12u));
+
+    for (uint8_t i = 0; i < s_target_count; ++i) {
+        const ground_target_t *target = &s_targets[i];
+        int16_t dx;
+        int16_t target_top_y;
+        int16_t target_center_y;
+        int16_t dy;
+        uint16_t shot_world_x;
+        uint8_t angle;
+
+        if (s_target_fire_cooldown[i] > 0u) {
+            --s_target_fire_cooldown[i];
+        }
+
+        if (s_target_destroyed[i] || !target_is_hostile(target) || s_target_fire_cooldown[i] != 0u) {
+            continue;
+        }
+
+        dx = world_delta_to_screen_x(player_world_x, target->world_x);
+        if (abs_i16(dx) > fire_range_px) {
+            continue;
+        }
+
+        target_top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
+                                 target->y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        target_center_y = (int16_t)(target_top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+        dy = (int16_t)(player_center_y - target_center_y);
+        if (abs_i16(dy) > TARGET_MAX_VERTICAL_RANGE_PX) {
+            continue;
+        }
+
+        shot_world_x = wrap_world_x((int16_t)target->world_x + (TARGETS_SPRITE_SIZE_PX / 2));
+        angle = angle_from_delta(dx, dy);
+        if (projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u)) {
+            s_target_fire_cooldown[i] = target_fire_cooldown_ticks(target);
+        }
+    }
+}
+
+void ground_targets_set_level(uint8_t level)
+{
+    if (level == 0u) {
+        level = 1u;
+    }
+
+    s_level = level;
+}
+
 void ground_targets_init(void)
 {
     uint8_t i;
@@ -99,7 +222,10 @@ void ground_targets_init(void)
     for (i = 0; i < s_target_count; ++i) {
         s_target_ground_y[i] = tile_mode2_ground_y_at_world_x(s_targets[i].world_x);
         s_target_destroyed[i] = false;
+        s_target_fire_cooldown[i] = 0u;
     }
+
+    s_tick_div = 0u;
 
     for (i = 0; i < MAX_TARGETS; ++i) {
         sprite_mode5_set_target(i, -32, -32, 0, TARGETS_PALETTE_ADDR, false);
@@ -109,6 +235,11 @@ void ground_targets_init(void)
 void ground_targets_update(uint16_t camera_world_x)
 {
     uint8_t i;
+
+    if (++s_tick_div >= TARGETS_FPS_DIV) {
+        s_tick_div = 0u;
+        update_target_fire();
+    }
 
     for (i = 0; i < s_target_count; ++i) {
         const ground_target_t *t = &s_targets[i];
