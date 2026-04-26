@@ -13,6 +13,8 @@ enum {
     PLAYER_RUNWAY_SPAN_PX = 20,
     PLAYER_HOME_APPROACH_OFFSET_PX = 16,
     PLAYER_HOME_SNAP_RANGE_PX = 16,
+    PLAYER_HOME_LANDING_RANGE_X_PX = 96,
+    PLAYER_HOME_LANDING_RANGE_Y_PX = 48,
     FLIGHT_FPS_DIV = 6,
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
@@ -261,6 +263,26 @@ static bool plane_is_in_home_snap_range(void)
            abs_i16(dy) < PLAYER_HOME_SNAP_RANGE_PX;
 }
 
+static bool plane_is_in_home_landing_range(void)
+{
+    int16_t dx = wrapped_world_delta(s_flight.world_x, PLAYER_START_WORLD_X_PX);
+    int16_t dy = (int16_t)(player_home_approach_plane_top_y() - s_flight.plane_y);
+
+    return abs_i16(dx) < PLAYER_HOME_LANDING_RANGE_X_PX &&
+           abs_i16(dy) < PLAYER_HOME_LANDING_RANGE_Y_PX;
+}
+
+static bool plane_is_on_home_runway(void)
+{
+    int16_t dx = wrapped_world_delta(PLAYER_START_WORLD_X_PX, s_flight.world_x);
+    int16_t home_ground_y = player_runway_ground_y();
+    int16_t grounded_top_y = plane_top_y_for_ground(home_ground_y);
+
+    return dx >= -8 &&
+           dx <= (PLAYER_RUNWAY_SPAN_PX + 8) &&
+           abs_i16((int16_t)(s_flight.plane_y - grounded_top_y)) <= 1;
+}
+
 static void update_autohome(uint8_t *nangle, int16_t *nspeed)
 {
     int16_t dx = wrapped_world_delta(s_flight.world_x, PLAYER_START_WORLD_X_PX);
@@ -467,7 +489,8 @@ static void flight_tick_10hz(const input_actions_t *actions)
         s_flight.landing = false;
     }
 
-    if (actions->land && !s_flight.prev_land_held && s_flight.airborne) {
+    if (actions->land && !s_flight.prev_land_held && s_flight.airborne &&
+        plane_is_in_home_landing_range()) {
         s_flight.landing = true;
     }
     s_flight.prev_land_held = actions->land != 0u;
@@ -646,6 +669,26 @@ uint8_t flight_plane_speed(void)
 bool flight_plane_orient(void)
 {
     return s_flight.plane_orient;
+}
+
+bool flight_is_airborne(void)
+{
+    return s_flight.airborne;
+}
+
+bool flight_is_at_home_base(void)
+{
+    if (s_flight.crashed || s_flight.falling || s_flight.airborne) {
+        return false;
+    }
+
+    return plane_is_on_home_runway();
+}
+
+bool flight_can_start_landing(void)
+{
+    return s_flight.airborne && !s_flight.crashed && !s_flight.falling &&
+           plane_is_in_home_landing_range();
 }
 
 bool flight_is_crashed(void)
