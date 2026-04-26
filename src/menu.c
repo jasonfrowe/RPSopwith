@@ -97,13 +97,18 @@ static void build_start_line(char *line, bool selected)
     line[9] = '\0';
 }
 
-static void draw_title_menu(void)
+static void clear_menu_row(uint8_t row)
+{
+    text_mode1_put_string(0, row, 0, "                                        ");
+}
+
+static void draw_menu_options(void)
 {
     char line[32];
 
-    text_mode1_clear();
-
-    text_mode1_put_string(14, 6, 15, "S O P W I T H");
+    clear_menu_row(10);
+    clear_menu_row(11);
+    clear_menu_row(12);
 
     build_level_line(line, (s_title_item == TITLE_ITEM_LEVEL), s_start_level);
     text_mode1_put_string(14, 10,
@@ -119,8 +124,12 @@ static void draw_title_menu(void)
     text_mode1_put_string(16, 12,
                           (s_title_item == TITLE_ITEM_START) ? 14 : 11,
                           line);
+}
 
-    text_mode1_render_score();
+static void draw_title_menu(void)
+{
+    text_mode1_put_string(14, 6, 15, "S O P W I T H");
+    draw_menu_options();
 }
 
 static void start_new_game(void)
