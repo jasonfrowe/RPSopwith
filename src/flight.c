@@ -7,6 +7,7 @@
 #include "enemy_planes.h"
 #include "flight.h"
 #include "ground_targets.h"
+#include "original_ground_3000.h"
 #include "projectiles.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
@@ -22,8 +23,6 @@ enum {
     FLIGHT_FPS_DIV = 6,
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
-    CRATER_RADIUS_PX = 4,
-    CRATER_MAX_DEPTH_PX = 3,
     MIN_SPEED = 5,
     MAX_SPEED = 10,
     MAX_THROTTLE = 4
@@ -56,6 +55,8 @@ typedef struct flight_state_s {
 } flight_state_t;
 
 static flight_state_t s_flight;
+static uint8_t s_terrain_height[WORLD_WIDTH_PX];
+static bool s_terrain_ready = false;
 static uint8_t s_tick_div = 0;
 static uint16_t s_render_world_x;
 static int16_t s_render_plane_y;
@@ -230,7 +231,15 @@ static uint8_t sprite_pixel_4bpp(uint8_t frame_index, uint8_t x, uint8_t y)
 
 static int16_t terrain_height_at_world_x(uint16_t world_x)
 {
-    return tile_mode2_ground_y_at_world_x(world_x);
+    if (!s_terrain_ready) {
+        for (uint16_t x = 0u; x < WORLD_WIDTH_PX; ++x) {
+            uint16_t y = (uint16_t)(199u - s_original_ground[x]);
+            s_terrain_height[x] = (y > 239u) ? 239u : (uint8_t)y;
+        }
+        s_terrain_ready = true;
+    }
+
+    return (int16_t)s_terrain_height[world_x % WORLD_WIDTH_PX];
 }
 
 static int16_t player_runway_ground_y(void)
@@ -759,6 +768,9 @@ finalize_tick:
 
 void flight_init(void)
 {
+    s_terrain_ready = false;
+    terrain_height_at_world_x(0u);
+    tile_mode2_reset_ground_map();
     s_tick_div = 0u;
     s_home_runway_ground_y = sample_player_runway_ground_y();
     reset_plane_to_home();
@@ -900,12 +912,30 @@ int16_t flight_terrain_y_at(uint16_t world_x)
 
 void flight_apply_bomb_crater(uint16_t impact_world_x)
 {
-    int16_t dx = wrapped_world_delta(PLAYER_START_WORLD_X_PX, impact_world_x);
+    uint16_t tile_start;
+    uint8_t column_samples[8];
+    static const uint8_t crater_profile[8] = {1u, 2u, 2u, 3u, 3u, 2u, 2u, 1u};
 
-    // Preserve the player home runway profile to avoid crater traps at spawn.
-    if (dx >= -8 && dx <= (PLAYER_RUNWAY_SPAN_PX + 8)) {
-        return;
+    if (!s_terrain_ready) {
+        terrain_height_at_world_x(0u);
     }
 
-    tile_mode2_apply_crater(impact_world_x, CRATER_RADIUS_PX, CRATER_MAX_DEPTH_PX);
+    tile_start = (uint16_t)((impact_world_x % WORLD_WIDTH_PX) & 0xFFF8u);
+
+    for (uint8_t i = 0u; i < 8u; ++i) {
+        uint16_t x = (uint16_t)((tile_start + i) % WORLD_WIDTH_PX);
+        uint8_t source_ground = s_original_ground[x];
+        uint8_t min_ground = (source_ground > 40u) ? (uint8_t)(source_ground - 20u) : 20u;
+        uint8_t max_crater_y = (uint8_t)(199u - min_ground);
+        uint16_t new_y = (uint16_t)(s_terrain_height[x] + crater_profile[i]);
+
+        if (new_y > max_crater_y) {
+            new_y = max_crater_y;
+        }
+
+        s_terrain_height[x] = (uint8_t)new_y;
+        column_samples[i] = s_terrain_height[x];
+    }
+
+    tile_mode2_update_ground_column(tile_start, column_samples);
 }
