@@ -114,6 +114,8 @@ static const uint16_t projectiles_palette[16] = {
 void sprite_mode5_players_init(void);
 void sprite_mode5_set_position(int16_t x, int16_t y);
 void sprite_mode5_init_targets(void);
+void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index,
+                             uint16_t palette_ptr, bool visible);
 void sprite_mode5_init_projectiles(void);
 void sprite_mode5_set_projectile(uint8_t slot, int16_t x, int16_t y,
                                  uint8_t frame_index, bool visible);

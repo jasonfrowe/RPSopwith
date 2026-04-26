@@ -25,5 +25,11 @@ static const uint16_t text_palette[16] = {
 };
 
 extern void text_mode1_init(void);
+extern void text_mode1_clear(void);
+extern void text_mode1_put_string(uint8_t col, uint8_t row, uint8_t color, const char *str);
+extern void text_mode1_render_score(void);
+extern void text_mode1_reset_score(void);
+extern void text_mode1_add_score(int16_t delta);
+extern void text_mode1_score_crash(void);
 
 #endif // TEXT_MODE1_H

@@ -116,6 +116,30 @@ void sprite_mode5_set_position(int16_t x, int16_t y)
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, y_pos_px, y);
 }
 
+void sprite_mode5_set_target(uint8_t slot, int16_t x, int16_t y, uint8_t frame_index,
+                             uint16_t palette_ptr, bool visible)
+{
+    unsigned ptr;
+    uint16_t sprite_ptr;
+
+    if (slot >= MAX_TARGETS) {
+        return;
+    }
+
+    ptr = TARGETS_CONFIG + ((unsigned)slot * sizeof(vga_mode5_sprite_t));
+    if (!visible) {
+        xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, -32);
+        xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, -32);
+        return;
+    }
+
+    sprite_ptr = (uint16_t)(TARGETS_DATA + ((unsigned)frame_index * TARGETS_FRAME_SIZE));
+    xram0_struct_set(ptr, vga_mode5_sprite_t, x_pos_px, x);
+    xram0_struct_set(ptr, vga_mode5_sprite_t, y_pos_px, y);
+    xram0_struct_set(ptr, vga_mode5_sprite_t, xram_sprite_ptr, sprite_ptr);
+    xram0_struct_set(ptr, vga_mode5_sprite_t, palette_ptr, palette_ptr);
+}
+
 void sprite_mode5_set_projectile(uint8_t slot, int16_t x, int16_t y,
                                  uint8_t frame_index, bool visible)
 {

@@ -62,6 +62,7 @@ static uint8_t gauge_tile_for_units(uint8_t base_tile, uint8_t units)
 static void draw_gauge_2tiles(uint8_t x, uint16_t value, uint16_t max_value, uint8_t base_tile)
 {
     uint16_t fill16;
+    uint16_t accum;
     uint8_t top_units;
     uint8_t bot_units;
 
@@ -71,7 +72,15 @@ static void draw_gauge_2tiles(uint8_t x, uint16_t value, uint16_t max_value, uin
         return;
     }
 
-    fill16 = (uint16_t)(((uint32_t)value * 16u + (max_value / 2u)) / max_value);
+    fill16 = 0u;
+    accum = (uint16_t)(max_value / 2u);
+    for (uint8_t i = 0; i < 16u; ++i) {
+        accum = (uint16_t)(accum + value);
+        if (accum >= max_value) {
+            accum = (uint16_t)(accum - max_value);
+            ++fill16;
+        }
+    }
     if (fill16 > 16u) {
         fill16 = 16u;
     }
