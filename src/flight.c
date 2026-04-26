@@ -23,7 +23,7 @@ enum {
     FLIP_REPEAT_INITIAL_DELAY_TICKS = 3,
     FLIP_REPEAT_INTERVAL_TICKS = 1,
     CRATER_RADIUS_PX = 4,
-    CRATER_MAX_DEPTH_PX = 4,
+    CRATER_MAX_DEPTH_PX = 3,
     MIN_SPEED = 5,
     MAX_SPEED = 10,
     MAX_THROTTLE = 4
@@ -647,6 +647,12 @@ static void flight_tick_10hz(const input_actions_t *actions)
     if (!s_flight.airborne) {
         grounded_y = plane_top_y_for_ground(terrain_y);
 
+        // Keep the home runway at its original baseline so cratered tiles
+        // cannot trap the player while taxiing/taking off at base.
+        if (plane_is_on_home_runway()) {
+            grounded_y = player_home_plane_top_y();
+        }
+
         if (s_flight.speed > 0u && plane_collides_with_terrain(grounded_y)) {
             mark_plane_crash(s_flight.world_x,
                              (int16_t)(grounded_y + (PLAYER_SPRITE_SIZE_PX / 2)),
@@ -894,5 +900,12 @@ int16_t flight_terrain_y_at(uint16_t world_x)
 
 void flight_apply_bomb_crater(uint16_t impact_world_x)
 {
+    int16_t dx = wrapped_world_delta(PLAYER_START_WORLD_X_PX, impact_world_x);
+
+    // Preserve the player home runway profile to avoid crater traps at spawn.
+    if (dx >= -8 && dx <= (PLAYER_RUNWAY_SPAN_PX + 8)) {
+        return;
+    }
+
     tile_mode2_apply_crater(impact_world_x, CRATER_RADIUS_PX, CRATER_MAX_DEPTH_PX);
 }

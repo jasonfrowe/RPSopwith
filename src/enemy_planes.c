@@ -513,10 +513,14 @@ static void enemy_tick_falling(enemy_plane_t *e)
     hit_type = ground_targets_check_plane_collision(e->world_x, e->plane_y,
                                                     &hit_world_x, &hit_center_y,
                                                     &score_delta);
+
+    if (hit_type != GROUND_TARGET_HIT_NONE) {
+        projectiles_spawn_crash_explosion(hit_world_x, hit_center_y, false);
+    }
+
     terrain_y = flight_terrain_y_at(e->world_x);
 
-    if (hit_type != GROUND_TARGET_HIT_NONE ||
-        e->plane_y >= (terrain_y - PLAYER_GROUND_CONTACT_FROM_TOP_PX) ||
+    if (e->plane_y >= (terrain_y - PLAYER_GROUND_CONTACT_FROM_TOP_PX) ||
         e->plane_y >= (SCREEN_HEIGHT + PLAYER_SPRITE_SIZE_PX)) {
         projectiles_spawn_crash_explosion(e->world_x,
                                           (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
