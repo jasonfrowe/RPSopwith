@@ -103,7 +103,7 @@ static void draw_title_menu(void)
 
     text_mode1_clear();
 
-    text_mode1_put_string(13, 6, 15, "S O P W I T H");
+    text_mode1_put_string(14, 6, 15, "S O P W I T H");
 
     build_level_line(line, (s_title_item == TITLE_ITEM_LEVEL), s_start_level);
     text_mode1_put_string(14, 10,
