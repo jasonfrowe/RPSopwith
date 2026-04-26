@@ -8,6 +8,8 @@ void enemy_planes_init(void);
 void enemy_planes_set_enabled(bool enabled);
 void enemy_planes_set_level(uint8_t level);
 void enemy_planes_update(uint16_t camera_world_x);
+uint8_t enemy_planes_get_minimap_fighters(uint16_t *world_x, int16_t *center_y,
+                                          uint8_t max_points);
 bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
                                  uint16_t *hit_world_x, int16_t *hit_center_y,
                                  int16_t *score_delta, bool *big_explosion);

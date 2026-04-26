@@ -158,3 +158,21 @@ void ambient_flocks_update(uint16_t camera_world_x)
         sprite_mode5_set_projectile((uint8_t)(flock_base + i), screen_x, screen_y, frame, visible);
     }
 }
+
+uint8_t ambient_flocks_get_minimap_flocks(uint16_t *world_x, int16_t *center_y,
+                                          uint8_t max_points)
+{
+    uint8_t count = 0u;
+
+    for (uint8_t i = 0; i < MAX_FLOCK_SPRITES && count < max_points; ++i) {
+        if (!s_flock_active[i]) {
+            continue;
+        }
+
+        world_x[count] = s_flock_world_x[i];
+        center_y[count] = (int16_t)(s_flock_screen_y[i] + (PROJECTILE_SPRITE_SIZE_PX / 2));
+        ++count;
+    }
+
+    return count;
+}

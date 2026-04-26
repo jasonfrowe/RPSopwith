@@ -908,6 +908,29 @@ void enemy_planes_set_enabled(bool enabled)
     s_enemy_enabled = enabled;
 }
 
+uint8_t enemy_planes_get_minimap_fighters(uint16_t *world_x, int16_t *center_y,
+                                          uint8_t max_points)
+{
+    uint8_t count = 0u;
+
+    for (uint8_t i = 0; i < MAX_ENEMIES && count < max_points; ++i) {
+        const enemy_plane_t *e = &s_enemies[i];
+
+        if (e->destroyed || e->crashed) {
+            continue;
+        }
+        if (!e->airborne && !e->falling) {
+            continue;
+        }
+
+        world_x[count] = e->world_x;
+        center_y[count] = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        ++count;
+    }
+
+    return count;
+}
+
 void enemy_planes_set_level(uint8_t level)
 {
     if (level == 0u) {
