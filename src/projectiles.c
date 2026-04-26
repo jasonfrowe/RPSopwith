@@ -430,8 +430,13 @@ static bool projectile_update_smoke(projectile_t *p)
 static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16_t prev_center_y)
 {
     ground_target_hit_type_t hit_target;
+    bool hit_enemy;
+    bool enemy_big_explosion = false;
     bool hit_ground;
     uint16_t impact_world_x;
+    uint16_t enemy_hit_world_x = 0u;
+    int16_t enemy_hit_center_y = 0;
+    int16_t enemy_score_delta = 0;
     uint16_t hit_world_x = 0u;
     int16_t hit_center_y = 0;
     int16_t score_delta = 0;
@@ -466,6 +471,26 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
         bomb_hits_plane(wrap_world_x((int16_t)prev_world_x + half_dx), mid_center_y)) {
         flight_apply_bomb_hit(p->world_x, p->center_y);
         spawn_explosion_from(p, p->world_x, p->center_y, false);
+        return;
+    }
+
+    hit_enemy = enemy_planes_check_shot_hit(p->world_x, p->center_y,
+                                            &enemy_hit_world_x, &enemy_hit_center_y,
+                                            &enemy_score_delta, &enemy_big_explosion);
+    if (!hit_enemy) {
+        hit_enemy = enemy_planes_check_shot_hit(prev_world_x, prev_center_y,
+                                                &enemy_hit_world_x, &enemy_hit_center_y,
+                                                &enemy_score_delta, &enemy_big_explosion);
+    }
+    if (!hit_enemy) {
+        hit_enemy = enemy_planes_check_shot_hit(wrap_world_x((int16_t)prev_world_x + half_dx),
+                                                mid_center_y,
+                                                &enemy_hit_world_x, &enemy_hit_center_y,
+                                                &enemy_score_delta, &enemy_big_explosion);
+    }
+    if (hit_enemy) {
+        spawn_explosion_from(p, enemy_hit_world_x, enemy_hit_center_y, enemy_big_explosion);
+        text_mode1_add_score(enemy_score_delta);
         return;
     }
 
