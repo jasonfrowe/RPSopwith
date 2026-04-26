@@ -30,10 +30,16 @@ enum {
     SCORE_DELTA_EXPLOSIVE_BUILDING = 200,
     SCORE_DELTA_OX = -200,
     TARGETS_FPS_DIV = 6u,
-    TARGET_MIN_FIRE_RANGE_PX = 120,
-    TARGET_MAX_VERTICAL_RANGE_PX = 80,
-    TARGET_COOLDOWN_BUILDING_TICKS = 24,
-    TARGET_COOLDOWN_ARMORED_TICKS = 16
+    TARGET_MAX_VERTICAL_FIRE_PX = 100,
+    TARGET_MAX_ORIENT = 8u,
+    TARGET_TYPE_TRUCK = 4u,
+    TARGET_TYPE_TANKER_TRUCK = 5u,
+    TARGET_TYPE_FLAG = 6u,
+    TARGET_TYPE_TENT = 7u,
+    TARGET_TYPE_OX = 8u,
+    TARGET_OX_HITBOX_TOP_OFFSET_PX = 8,
+    TARGET_OX_HITBOX_WIDTH_PX = 12,
+    TARGET_OX_HITBOX_HEIGHT_PX = 6
 };
 
 static const ground_target_t s_targets[] = {
@@ -64,13 +70,17 @@ static const ground_target_t s_targets[] = {
 static uint8_t s_target_count;
 static int16_t s_target_ground_y[MAX_TARGETS];
 static bool s_target_destroyed[MAX_TARGETS];
-static uint8_t s_target_fire_cooldown[MAX_TARGETS];
 static uint8_t s_level = 1u;
 static uint8_t s_tick_div;
+static uint16_t s_tick_count_10hz;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
     0, -98, -181, -237, -256, -237, -181, -98
+};
+
+static const uint8_t s_target_aggression[TARGET_MAX_ORIENT + 1u] = {
+    2u, 2u, 2u, 2u, 5u, 5u, 0u, 0u, 0u
 };
 
 static int16_t abs_i16(int16_t v)
@@ -112,22 +122,13 @@ static bool target_is_hostile(const ground_target_t *target)
     return target->score_delta > 0 && target->orient != 8u;
 }
 
-static uint8_t target_fire_cooldown_ticks(const ground_target_t *target)
+static uint8_t target_aggression(const ground_target_t *target)
 {
-    uint8_t cooldown = (target->orient == 2u || target->orient == 5u)
-        ? TARGET_COOLDOWN_ARMORED_TICKS
-        : TARGET_COOLDOWN_BUILDING_TICKS;
-
-    if (s_level > 2u) {
-        uint8_t level_bonus = (uint8_t)(s_level - 2u);
-        if (cooldown > (uint8_t)(6u + level_bonus)) {
-            cooldown = (uint8_t)(cooldown - level_bonus);
-        } else {
-            cooldown = 6u;
-        }
+    if (target->orient <= TARGET_MAX_ORIENT) {
+        return s_target_aggression[target->orient];
     }
 
-    return cooldown;
+    return 0u;
 }
 
 static uint8_t angle_from_delta(int16_t dx, int16_t dy)
@@ -149,6 +150,18 @@ static uint8_t angle_from_delta(int16_t dx, int16_t dy)
     return best_angle;
 }
 
+static int16_t target_fire_range_px(void)
+{
+    uint8_t game_num = (s_level > 0u) ? (uint8_t)(s_level - 1u) : 0u;
+    int16_t target_range = 150;
+
+    if (game_num < 6u) {
+        target_range = (int16_t)(target_range - (15 * (6 - game_num)));
+    }
+
+    return target_range;
+}
+
 static void update_target_fire(void)
 {
     uint16_t player_world_x;
@@ -161,43 +174,44 @@ static void update_target_fire(void)
 
     player_world_x = flight_world_x_physics();
     player_center_y = (int16_t)(flight_plane_y_physics() + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
-    fire_range_px = (int16_t)(TARGET_MIN_FIRE_RANGE_PX + ((s_level - 2u) * 12u));
+    fire_range_px = target_fire_range_px();
 
     for (uint8_t i = 0; i < s_target_count; ++i) {
         const ground_target_t *target = &s_targets[i];
         int16_t dx;
-        int16_t target_top_y;
+        int16_t top_y;
         int16_t target_center_y;
         int16_t dy;
         uint16_t shot_world_x;
         uint8_t angle;
+        uint8_t aggression;
 
-        if (s_target_fire_cooldown[i] > 0u) {
-            --s_target_fire_cooldown[i];
-        }
-
-        if (s_target_destroyed[i] || !target_is_hostile(target) || s_target_fire_cooldown[i] != 0u) {
+        if (s_target_destroyed[i] || !target_is_hostile(target)) {
             continue;
         }
 
+        aggression = target_aggression(target);
+        if (aggression == 0u) {
+            continue;
+        }
+
+        if (s_level == 2u && (s_tick_count_10hz % aggression) != (uint16_t)(aggression - 1u)) {
+            continue;
+        }
+
+        top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
+                          target->y_offset_px + TARGET_VERTICAL_BIAS_PX);
+        target_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
         dx = world_delta_to_screen_x(player_world_x, target->world_x);
-        if (abs_i16(dx) > fire_range_px) {
-            continue;
-        }
-
-        target_top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
-                                 target->y_offset_px + TARGET_VERTICAL_BIAS_PX);
-        target_center_y = (int16_t)(target_top_y + (TARGETS_SPRITE_SIZE_PX / 2));
         dy = (int16_t)(player_center_y - target_center_y);
-        if (abs_i16(dy) > TARGET_MAX_VERTICAL_RANGE_PX) {
+
+        if (abs_i16(dx) > fire_range_px || abs_i16(dy) > TARGET_MAX_VERTICAL_FIRE_PX) {
             continue;
         }
 
         shot_world_x = wrap_world_x((int16_t)target->world_x + (TARGETS_SPRITE_SIZE_PX / 2));
         angle = angle_from_delta(dx, dy);
-        if (projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u)) {
-            s_target_fire_cooldown[i] = target_fire_cooldown_ticks(target);
-        }
+        (void)projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u);
     }
 }
 
@@ -222,10 +236,10 @@ void ground_targets_init(void)
     for (i = 0; i < s_target_count; ++i) {
         s_target_ground_y[i] = tile_mode2_ground_y_at_world_x(s_targets[i].world_x);
         s_target_destroyed[i] = false;
-        s_target_fire_cooldown[i] = 0u;
     }
 
     s_tick_div = 0u;
+    s_tick_count_10hz = 0u;
 
     for (i = 0; i < MAX_TARGETS; ++i) {
         sprite_mode5_set_target(i, -32, -32, 0, TARGETS_PALETTE_ADDR, false);
@@ -238,6 +252,7 @@ void ground_targets_update(uint16_t camera_world_x)
 
     if (++s_tick_div >= TARGETS_FPS_DIV) {
         s_tick_div = 0u;
+        ++s_tick_count_10hz;
         update_target_fire();
     }
 
@@ -390,12 +405,16 @@ ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_wor
 {
     int16_t world_width = (int16_t)(GROUND_WIDTH * 8);
     int16_t half_world = (int16_t)(world_width / 2);
-    int16_t plane_bot_y = (int16_t)(plane_top_y + PLAYER_SPRITE_SIZE_PX - 1);
+    int16_t plane_hit_top_y = (int16_t)(plane_top_y + PLANE_HITBOX_TOP_OFFSET_PX);
+    int16_t plane_bot_y = (int16_t)(plane_hit_top_y + PLANE_HITBOX_HEIGHT_PX - 1);
 
     for (uint8_t i = 0; i < s_target_count; ++i) {
         int16_t dx;
         int16_t top_y;
         int16_t bot_y;
+        int16_t center_y;
+        int16_t hit_width = TARGETS_SPRITE_SIZE_PX;
+        int16_t hit_height = TARGETS_SPRITE_SIZE_PX;
 
         if (s_target_destroyed[i]) {
             continue;
@@ -410,18 +429,24 @@ ground_target_hit_type_t ground_targets_check_plane_collision(uint16_t plane_wor
 
         top_y = (int16_t)(s_target_ground_y[i] - TARGETS_SPRITE_SIZE_PX + 1 +
                           s_targets[i].y_offset_px + TARGET_VERTICAL_BIAS_PX);
-        bot_y = (int16_t)(top_y + TARGETS_SPRITE_SIZE_PX - 1);
+        if (s_targets[i].orient == TARGET_TYPE_OX) {
+            top_y = (int16_t)(top_y + TARGET_OX_HITBOX_TOP_OFFSET_PX);
+            hit_width = TARGET_OX_HITBOX_WIDTH_PX;
+            hit_height = TARGET_OX_HITBOX_HEIGHT_PX;
+        }
+        bot_y = (int16_t)(top_y + hit_height - 1);
+        center_y = (int16_t)(top_y + (hit_height / 2));
 
-        if (dx >= -(PLAYER_SPRITE_SIZE_PX / 2) &&
-            dx <= (TARGETS_SPRITE_SIZE_PX - 1 + PLAYER_SPRITE_SIZE_PX / 2) &&
-            plane_top_y <= bot_y && plane_bot_y >= top_y) {
+        if (dx >= -(int16_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX &&
+            dx <= (int16_t)(hit_width - 1 + PLANE_HITBOX_HALF_WIDTH_RIGHT_PX) &&
+            plane_hit_top_y <= bot_y && plane_bot_y >= top_y) {
             s_target_destroyed[i] = true;
 
             if (hit_world_x != 0) {
                 *hit_world_x = wrap_world_x((int16_t)s_targets[i].world_x + (TARGETS_SPRITE_SIZE_PX / 2));
             }
             if (hit_center_y != 0) {
-                *hit_center_y = (int16_t)(top_y + (TARGETS_SPRITE_SIZE_PX / 2));
+                *hit_center_y = center_y;
             }
             if (score_delta != 0) {
                 *score_delta = s_targets[i].score_delta;
