@@ -71,6 +71,8 @@ static uint8_t s_tick_div;
 static uint16_t s_tick_count_10hz;
 static bool s_enemy_enabled = true;
 static uint8_t s_level_bonus = 0u;
+static uint8_t s_visible_enemy_indices[MAX_ENEMIES];
+static uint8_t s_visible_enemy_count = 0u;
 
 static const int16_t s_sintab[16] = {
     0, 98, 181, 237, 256, 237, 181, 98,
@@ -182,6 +184,32 @@ static bool rect_overlap(int16_t left_a, int16_t top_a,
 
     return left_a < right_b && right_a > left_b &&
            top_a < bottom_b && bottom_a > top_b;
+}
+
+static bool enemy_is_visible_for_camera(const enemy_plane_t *e, uint16_t camera_world_x,
+                                        int16_t *distance_out)
+{
+    int16_t dx;
+    int16_t center_x;
+    int16_t sprite_x;
+
+    if (e->destroyed || (!e->airborne && !e->falling && !e->crashed && e->launch_delay_10hz > 0u)) {
+        return false;
+    }
+
+    dx = world_delta_to_screen_x(e->world_x, camera_world_x);
+    center_x = (int16_t)((SCREEN_WIDTH / 2) + dx);
+    sprite_x = (int16_t)(center_x - (PLAYER_SPRITE_SIZE_PX / 2));
+
+    if (sprite_x <= -PLAYER_SPRITE_SIZE_PX || sprite_x >= SCREEN_WIDTH ||
+        e->plane_y <= -PLAYER_SPRITE_SIZE_PX || e->plane_y >= SCREEN_HEIGHT) {
+        return false;
+    }
+
+    if (distance_out != 0) {
+        *distance_out = abs_i16(dx);
+    }
+    return true;
 }
 
 static uint8_t clamp_u8(uint8_t v, uint8_t lo, uint8_t hi)
@@ -794,6 +822,43 @@ static void enemy_render(enemy_plane_t *e, uint8_t slot, uint16_t camera_world_x
     sprite_mode5_set_enemy(slot, sprite_x, render_y, enemy_frame_index(e), visible);
 }
 
+static void assign_visible_enemy_slots(uint16_t camera_world_x)
+{
+    int16_t visible_distances[MAX_ENEMIES];
+
+    s_visible_enemy_count = 0u;
+
+    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
+        int16_t distance;
+
+        if (!enemy_is_visible_for_camera(&s_enemies[i], camera_world_x, &distance)) {
+            continue;
+        }
+
+        if (s_visible_enemy_count < MAX_ENEMIES) {
+            uint8_t slot = s_visible_enemy_count;
+
+            while (slot > 0u && distance < visible_distances[slot - 1u]) {
+                visible_distances[slot] = visible_distances[slot - 1u];
+                s_visible_enemy_indices[slot] = s_visible_enemy_indices[slot - 1u];
+                --slot;
+            }
+
+            visible_distances[slot] = distance;
+            s_visible_enemy_indices[slot] = i;
+            ++s_visible_enemy_count;
+        }
+    }
+
+    for (uint8_t slot = 0u; slot < s_visible_enemy_count; ++slot) {
+        enemy_render(&s_enemies[s_visible_enemy_indices[slot]], slot, camera_world_x);
+    }
+
+    for (uint8_t slot = s_visible_enemy_count; slot < MAX_ENEMIES; ++slot) {
+        sprite_mode5_set_enemy(slot, -32, -32, 0, false);
+    }
+}
+
 void enemy_planes_init(void)
 {
     s_enemies[0].home_x = 588u;
@@ -828,11 +893,13 @@ void enemy_planes_init(void)
 
     s_tick_div = 0u;
     s_tick_count_10hz = 0u;
+    s_visible_enemy_count = 0u;
 }
 
 void enemy_planes_update(uint16_t camera_world_x)
 {
     if (!s_enemy_enabled) {
+        s_visible_enemy_count = 0u;
         for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
             sprite_mode5_set_enemy(i, -32, -32, 0, false);
         }
@@ -847,9 +914,7 @@ void enemy_planes_update(uint16_t camera_world_x)
         }
     }
 
-    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
-        enemy_render(&s_enemies[i], i, camera_world_x);
-    }
+    assign_visible_enemy_slots(camera_world_x);
 }
 
 void enemy_planes_set_enabled(bool enabled)
@@ -874,8 +939,8 @@ bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
         return false;
     }
 
-    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
-        enemy_plane_t *e = &s_enemies[i];
+    for (uint8_t n = 0; n < s_visible_enemy_count; ++n) {
+        enemy_plane_t *e = &s_enemies[s_visible_enemy_indices[n]];
         int16_t dx;
         int16_t top_y;
         int16_t bot_y;
@@ -919,8 +984,8 @@ bool enemy_planes_check_fragment_hit(uint16_t world_x, int16_t center_y, uint8_t
         return false;
     }
 
-    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
-        enemy_plane_t *e = &s_enemies[i];
+    for (uint8_t i = 0; i < s_visible_enemy_count; ++i) {
+        enemy_plane_t *e = &s_enemies[s_visible_enemy_indices[i]];
         int16_t dx;
         int16_t enemy_center_y;
         int16_t dy;
@@ -987,7 +1052,7 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
         uint16_t contact_world_x;
         int16_t contact_center_y;
 
-        if (e->destroyed || e->falling || e->crashed) {
+        if (e->destroyed || e->crashed) {
             continue;
         }
 
