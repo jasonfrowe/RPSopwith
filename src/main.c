@@ -4,6 +4,8 @@
 #include "constants.h"
 #include "input.h"
 #include "flight.h"
+#include "resources.h"
+#include "projectiles.h"
 #include "tile_mode2.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
@@ -23,6 +25,8 @@ static bool init_graphics(void)
     sprite_mode5_init_targets();
     sprite_mode5_init_projectiles();
     text_mode1_init();
+    resources_init();
+    projectiles_init();
 
     return true;
 }
@@ -34,6 +38,16 @@ static void wait_for_vsync(void)
     while (RIA.vsync == s_vsync_last) {
     }
     s_vsync_last = RIA.vsync;
+}
+
+static void update_player_projectiles(const input_actions_t *actions)
+{
+    projectiles_update(flight_world_x(), actions);
+}
+
+static void update_player(const input_actions_t *actions)
+{
+    flight_update(actions);
 }
 
 int main(void)
@@ -52,6 +66,8 @@ int main(void)
         wait_for_vsync();
 
         input_poll(&actions);
-        flight_update(&actions);
+
+        update_player(&actions);
+        update_player_projectiles(&actions);
     }
 }
