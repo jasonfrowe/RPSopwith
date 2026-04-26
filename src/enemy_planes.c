@@ -162,30 +162,6 @@ static int16_t clamp_i16(int16_t v, int16_t lo, int16_t hi)
     return v;
 }
 
-static int16_t min_i16(int16_t a, int16_t b)
-{
-    return (a < b) ? a : b;
-}
-
-static int16_t max_i16(int16_t a, int16_t b)
-{
-    return (a > b) ? a : b;
-}
-
-static bool rect_overlap(int16_t left_a, int16_t top_a,
-                         int16_t width_a, int16_t height_a,
-                         int16_t left_b, int16_t top_b,
-                         int16_t width_b, int16_t height_b)
-{
-    int16_t right_a = (int16_t)(left_a + width_a);
-    int16_t bottom_a = (int16_t)(top_a + height_a);
-    int16_t right_b = (int16_t)(left_b + width_b);
-    int16_t bottom_b = (int16_t)(top_b + height_b);
-
-    return left_a < right_b && right_a > left_b &&
-           top_a < bottom_b && bottom_a > top_b;
-}
-
 static bool enemy_is_visible_for_camera(const enemy_plane_t *e, uint16_t camera_world_x,
                                         int16_t *distance_out)
 {
@@ -1022,81 +998,36 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
                                          uint16_t *hit_world_x, int16_t *hit_center_y,
                                          bool *big_explosion)
 {
+    int16_t collision_threshold = (int16_t)COLLISION_BOX_SIZE_PX;
+
+    (void)player_prev_world_x;
+    (void)player_prev_plane_y;
+
     if (!s_enemy_enabled) {
         return false;
     }
 
-    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
-        enemy_plane_t *e = &s_enemies[i];
-        int16_t enemy_center_now;
-        int16_t enemy_center_prev;
-        int16_t player_center_now;
-        int16_t player_center_prev;
-        int16_t enemy_left_now;
-        int16_t enemy_left_prev;
-        int16_t player_left_now;
-        int16_t player_left_prev;
-        int16_t enemy_top_now;
-        int16_t enemy_top_prev;
-        int16_t player_top_now;
-        int16_t player_top_prev;
-        int16_t enemy_sweep_left;
-        int16_t enemy_sweep_top;
-        int16_t player_sweep_left;
-        int16_t player_sweep_top;
-        int16_t enemy_sweep_w;
-        int16_t enemy_sweep_h;
-        int16_t player_sweep_w;
-        int16_t player_sweep_h;
-        bool collided;
+    for (uint8_t i = 0; i < s_visible_enemy_count; ++i) {
+        enemy_plane_t *e = &s_enemies[s_visible_enemy_indices[i]];
+        int16_t now_dx;
+        int16_t now_dy;
         uint16_t contact_world_x;
         int16_t contact_center_y;
+        bool collided_now;
 
-        if (e->destroyed || e->crashed) {
+        if (e->destroyed || e->falling || e->crashed) {
             continue;
         }
 
-        enemy_center_now = 0;
-        enemy_center_prev = wrapped_world_delta(e->world_x, e->prev_world_x);
-        player_center_now = wrapped_world_delta(e->world_x, player_world_x);
-        player_center_prev = wrapped_world_delta(e->world_x, player_prev_world_x);
-
-        enemy_left_now = (int16_t)(enemy_center_now - (PLAYER_SPRITE_SIZE_PX / 2) + COLLISION_BOX_INSET_PX);
-        enemy_left_prev = (int16_t)(enemy_center_prev - (PLAYER_SPRITE_SIZE_PX / 2) + COLLISION_BOX_INSET_PX);
-        player_left_now = (int16_t)(player_center_now - (PLAYER_SPRITE_SIZE_PX / 2) + COLLISION_BOX_INSET_PX);
-        player_left_prev = (int16_t)(player_center_prev - (PLAYER_SPRITE_SIZE_PX / 2) + COLLISION_BOX_INSET_PX);
-
-        enemy_top_now = (int16_t)(e->plane_y + COLLISION_BOX_INSET_PX);
-        enemy_top_prev = (int16_t)(e->prev_plane_y + COLLISION_BOX_INSET_PX);
-        player_top_now = (int16_t)(player_plane_y + COLLISION_BOX_INSET_PX);
-        player_top_prev = (int16_t)(player_prev_plane_y + COLLISION_BOX_INSET_PX);
-
-        enemy_sweep_left = min_i16(enemy_left_now, enemy_left_prev);
-        enemy_sweep_top = min_i16(enemy_top_now, enemy_top_prev);
-        player_sweep_left = min_i16(player_left_now, player_left_prev);
-        player_sweep_top = min_i16(player_top_now, player_top_prev);
-
-        enemy_sweep_w = (int16_t)(max_i16(enemy_left_now, enemy_left_prev) - enemy_sweep_left + COLLISION_BOX_SIZE_PX);
-        enemy_sweep_h = (int16_t)(max_i16(enemy_top_now, enemy_top_prev) - enemy_sweep_top + COLLISION_BOX_SIZE_PX);
-        player_sweep_w = (int16_t)(max_i16(player_left_now, player_left_prev) - player_sweep_left + COLLISION_BOX_SIZE_PX);
-        player_sweep_h = (int16_t)(max_i16(player_top_now, player_top_prev) - player_sweep_top + COLLISION_BOX_SIZE_PX);
-
-        collided = rect_overlap(enemy_left_now, enemy_top_now,
-                                COLLISION_BOX_SIZE_PX, COLLISION_BOX_SIZE_PX,
-                                player_left_now, player_top_now,
-                                COLLISION_BOX_SIZE_PX, COLLISION_BOX_SIZE_PX);
-
-        if (!collided) {
-            collided = rect_overlap(enemy_sweep_left, enemy_sweep_top,
-                                    enemy_sweep_w, enemy_sweep_h,
-                                    player_sweep_left, player_sweep_top,
-                                    player_sweep_w, player_sweep_h);
-        }
+        now_dx = wrapped_world_delta(e->world_x, player_world_x);
+        now_dy = (int16_t)(player_plane_y - e->plane_y);
+        collided_now = (abs_i16(now_dx) < collision_threshold) &&
+                       (abs_i16(now_dy) < collision_threshold);
 
         contact_world_x = e->world_x;
         contact_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
 
-        if (collided) {
+        if (collided_now) {
             int16_t sep_dx = wrapped_world_delta(player_world_x, e->world_x);
             int8_t bounce_dx = (sep_dx >= 0) ? 5 : -5;
 
