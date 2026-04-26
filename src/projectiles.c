@@ -380,6 +380,11 @@ static bool projectile_update_explosion(projectile_t *p)
         }
     }
 
+    if (enemy_planes_check_fragment_hit(p->world_x, p->center_y, 8u, 0, 0, 0)) {
+        p->active = false;
+        return true;
+    }
+
     if (p->life_ticks > 0u) {
         --p->life_ticks;
     }

@@ -30,10 +30,12 @@ typedef struct enemy_plane_s {
     int8_t fall_dy;
     int8_t fall_countdown;
     uint8_t smoke_cooldown_10hz;
+    uint8_t crash_linger_10hz;
     bool airborne;
     bool orient;
     bool destroyed;
     bool falling;
+    bool crashed;
 } enemy_plane_t;
 
 enum {
@@ -49,6 +51,7 @@ enum {
     ENEMY_FIRE_SPEED_BONUS = 10,
     ENEMY_SHOT_COOLDOWN_TICKS = 3,
     ENEMY_RESPAWN_TICKS = 24,
+    ENEMY_CRASH_LINGER_TICKS = 10,
     ENEMY_SCORE_DELTA = 100,
     TERRITORY_EDGE_MARGIN_PX = 32,
     FALL_COUNT_RESET = 10,
@@ -204,19 +207,6 @@ static bool within_home_range(const enemy_plane_t *e)
            abs_i16((int16_t)(e->plane_y - e->home_y)) < HOME_RANGE_PX;
 }
 
-static bool crash_risk(const enemy_plane_t *e, uint16_t nx, int16_t ny, int16_t dy_scaled)
-{
-    int16_t terrain_y = flight_terrain_y_at(nx);
-    int16_t alt = (int16_t)(terrain_y - (ny + (PLAYER_SPRITE_SIZE_PX / 2)));
-    int16_t lookahead = within_home_range(e) ? 1 : 3;
-
-    if (alt > 50) {
-        return false;
-    }
-
-    return (int16_t)(alt + (dy_scaled * lookahead) / 256) < 8;
-}
-
 static uint8_t player_pitch_for_enemy(void)
 {
     if (flight_plane_orient()) {
@@ -281,19 +271,10 @@ static void pick_target(const enemy_plane_t *e, bool has_target,
     }
 
     {
-        uint16_t world_third_l = (uint16_t)(WORLD_WIDTH_PX / 3);
-        uint16_t world_third_r = (uint16_t)((WORLD_WIDTH_PX * 2) / 3);
-        uint8_t courseadj = ((s_tick_count_10hz & 0x1Fu) < 16u) ? 16u : 0u;
-        uint16_t cruise_x = e->home_x;
+        int16_t home_sweep = ((s_tick_count_10hz & 0x1Fu) < 16u) ? 24 : -24;
 
-        if (cruise_x < world_third_l) {
-            cruise_x = world_third_l;
-        }
-        if (cruise_x > world_third_r) {
-            cruise_x = world_third_r;
-        }
-        *ax = (int16_t)(cruise_x + courseadj);
-        *ay = (int16_t)(SCREEN_HEIGHT - 60 - (courseadj >> 1));
+        *ax = (int16_t)wrap_world_x((int16_t)e->home_x + home_sweep);
+        *ay = (int16_t)(e->home_y - 28);
     }
 }
 
@@ -303,8 +284,6 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
     int16_t ax;
     int16_t ay;
     int16_t crange[3];
-    int16_t calt[3];
-    bool ccrash[3];
     int16_t rmin;
     uint8_t best_i = 0u;
 
@@ -323,13 +302,11 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
         ny = (int16_t)(e->plane_y + cvy);
 
         crange[i] = range_metric((int16_t)nx, ny, ax, ay);
-        calt[i] = (int16_t)(flight_terrain_y_at(nx) - (ny + (PLAYER_SPRITE_SIZE_PX / 2)));
-        ccrash[i] = crash_risk(e, nx, ny, (int16_t)(nspeed * s_sintab[nangle & 0x0Fu]));
     }
 
     rmin = 32767;
     for (uint8_t i = 0; i < 3u; ++i) {
-        if (!ccrash[i] && crange[i] >= 0 && crange[i] < rmin) {
+        if (crange[i] >= 0 && crange[i] < rmin) {
             rmin = crange[i];
             best_i = i;
         }
@@ -338,7 +315,7 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
     if (rmin == 32767) {
         rmin = -32767;
         for (uint8_t i = 0; i < 3u; ++i) {
-            if (!ccrash[i] && crange[i] < 0 && crange[i] > rmin) {
+            if (crange[i] < 0 && crange[i] > rmin) {
                 rmin = crange[i];
                 best_i = i;
             }
@@ -349,21 +326,7 @@ static void enemy_aim(enemy_plane_t *e, bool has_target)
         e->accel = MAX_THROTTLE;
     }
 
-    if (rmin == -32767) {
-        int16_t best_alt = calt[0];
-        best_i = 0u;
-
-        if (e->accel > 0u) {
-            --e->accel;
-        }
-
-        for (uint8_t i = 1; i < 3u; ++i) {
-            if (calt[i] > best_alt) {
-                best_alt = calt[i];
-                best_i = i;
-            }
-        }
-    } else if (e->accel < MAX_THROTTLE) {
+    if (e->accel < MAX_THROTTLE) {
         ++e->accel;
     }
 
@@ -394,17 +357,25 @@ static void enemy_try_fire(enemy_plane_t *e)
 
 static uint8_t enemy_frame_index(const enemy_plane_t *e)
 {
+    int8_t vx = e->vx;
+    int8_t vy = e->vy;
+    uint8_t angle;
+    bool facing_left;
+
     if (e->falling) {
-        uint8_t angle = angle_from_velocity(e->fall_dx, e->fall_dy);
-        if (e->fall_dx < 0) {
-            return (uint8_t)(16u + ((16u - angle) & 0x0Fu));
-        }
-        return angle;
+        vx = e->fall_dx;
+        vy = e->fall_dy;
     }
 
-    uint8_t angle = e->angle & 0x0Fu;
+    if (vx == 0 && vy == 0) {
+        angle = e->angle & 0x0Fu;
+        facing_left = e->orient;
+    } else {
+        angle = angle_from_velocity(vx, vy);
+        facing_left = vx < 0;
+    }
 
-    if (e->orient) {
+    if (facing_left) {
         return (uint8_t)(16u + ((16u - angle) & 0x0Fu));
     }
     return angle;
@@ -425,22 +396,26 @@ static void enemy_reset_home(enemy_plane_t *e)
     e->fall_dy = 0;
     e->fall_countdown = FALL_COUNT_RESET;
     e->smoke_cooldown_10hz = 0u;
+    e->crash_linger_10hz = 0u;
     e->airborne = false;
     e->launch_delay_10hz = 0u;
     e->falling = false;
+    e->crashed = false;
 }
 
 static void enemy_start_falling(enemy_plane_t *e)
 {
+    if (e->destroyed || e->falling || e->crashed) {
+        return;
+    }
+
     e->falling = true;
-    e->airborne = false;
+    e->crashed = false;
+    e->airborne = true;
     e->fall_dx = e->vx;
     e->fall_dy = e->vy;
     if (e->fall_dx == 0) {
         e->fall_dx = e->orient ? -1 : 1;
-    }
-    if (e->fall_dy <= 0) {
-        e->fall_dy = 1;
     }
     e->fall_countdown = FALL_COUNT_RESET;
     e->smoke_cooldown_10hz = 0u;
@@ -497,8 +472,13 @@ static void enemy_tick_falling(enemy_plane_t *e)
                                           (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
                                           false);
         e->falling = false;
-        e->destroyed = true;
-        e->respawn_delay_10hz = ENEMY_RESPAWN_TICKS;
+        e->crashed = true;
+        e->crash_linger_10hz = ENEMY_CRASH_LINGER_TICKS;
+        e->vx = 0;
+        e->vy = 0;
+        e->speed = 0u;
+        e->prev_world_x = e->world_x;
+        e->prev_plane_y = e->plane_y;
     }
 }
 
@@ -531,6 +511,19 @@ static void enemy_tick_10hz(enemy_plane_t *e)
         return;
     }
 
+    if (e->crashed) {
+        e->prev_world_x = e->world_x;
+        e->prev_plane_y = e->plane_y;
+        if (e->crash_linger_10hz > 0u) {
+            --e->crash_linger_10hz;
+            return;
+        }
+        e->crashed = false;
+        e->destroyed = true;
+        e->respawn_delay_10hz = ENEMY_RESPAWN_TICKS;
+        return;
+    }
+
     if (e->destroyed) {
         if (e->respawn_delay_10hz > 0u) {
             --e->respawn_delay_10hz;
@@ -548,15 +541,14 @@ static void enemy_tick_10hz(enemy_plane_t *e)
     e->prev_plane_y = e->plane_y;
 
     if (!e->airborne) {
-        if (!has_target) {
-            e->world_x = e->home_x;
-            e->plane_y = e->home_y;
-            e->prev_world_x = e->home_x;
-            e->prev_plane_y = e->home_y;
-            e->speed = 0u;
-            e->vx = 0;
-            e->vy = 0;
-            return;
+        // Stay at home while waiting to launch
+        e->world_x = e->home_x;
+        e->plane_y = e->home_y;
+        e->vx = 0;
+        e->vy = 0;
+
+        if (flight_is_at_home_base()) {
+            e->launch_delay_10hz = 0u;
         }
 
         if (e->launch_delay_10hz > 0u) {
@@ -564,6 +556,7 @@ static void enemy_tick_10hz(enemy_plane_t *e)
             return;
         }
 
+        // Launch when delay expires - no "patrol mode" gate
         e->airborne = true;
         e->speed = MIN_SPEED;
         e->accel = MAX_THROTTLE;
@@ -593,17 +586,22 @@ static void enemy_tick_10hz(enemy_plane_t *e)
 
     enemy_enforce_territory(e);
 
-    max_plane_top = (int16_t)(flight_terrain_y_at(e->world_x) -
-                              PLAYER_GROUND_CONTACT_FROM_TOP_PX -
-                              ENEMY_MIN_CLEARANCE_PX);
-    if (max_plane_top < ENEMY_TOP_LIMIT_PX) {
-        max_plane_top = ENEMY_TOP_LIMIT_PX;
-    }
-    if (e->plane_y > max_plane_top) {
-        e->plane_y = max_plane_top;
-    }
+    e->plane_y = clamp_i16(e->plane_y, (int16_t)(-SCREEN_HEIGHT), SCREEN_HEIGHT - 1);
 
-    e->plane_y = clamp_i16(e->plane_y, ENEMY_TOP_LIMIT_PX, SCREEN_HEIGHT - 1);
+    {
+        uint16_t hit_world_x = 0u;
+        int16_t hit_center_y = 0;
+        int16_t score_delta = 0;
+        ground_target_hit_type_t hit_type =
+            ground_targets_check_plane_collision(e->world_x, e->plane_y,
+                                                 &hit_world_x, &hit_center_y,
+                                                 &score_delta);
+
+        if (hit_type != GROUND_TARGET_HIT_NONE) {
+            enemy_start_falling(e);
+            return;
+        }
+    }
 
     if (has_target) {
         enemy_try_fire(e);
@@ -624,7 +622,7 @@ static void enemy_render(enemy_plane_t *e, uint8_t slot, uint16_t camera_world_x
     int16_t half;
     bool visible;
 
-    if (e->destroyed || (!e->airborne && !e->falling && e->launch_delay_10hz > 0u)) {
+    if (e->destroyed || (!e->airborne && !e->falling && !e->crashed && e->launch_delay_10hz > 0u)) {
         sprite_mode5_set_enemy(slot, -32, -32, 0, false);
         return;
     }
@@ -679,12 +677,17 @@ void enemy_planes_init(void)
     for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
         s_enemies[i].home_y = home_plane_top_y(s_enemies[i].home_x);
         s_enemies[i].destroyed = false;
+        s_enemies[i].crashed = false;
         s_enemies[i].respawn_delay_10hz = 0u;
         s_enemies[i].fire_cooldown_10hz = 0u;
         enemy_reset_home(&s_enemies[i]);
-        s_enemies[i].launch_delay_10hz = 0u;
+        s_enemies[i].launch_delay_10hz = 20u;  // All enemies start with 20 tick delay
         sprite_mode5_set_enemy(i, -32, -32, 0, false);
     }
+
+    // Nearest enemy to player start takes off immediately
+    uint8_t nearest = 1;  // Enemy 1 (home_x=1720) is nearest to PLAYER_START_WORLD_X_PX (1270)
+    s_enemies[nearest].launch_delay_10hz = 0u;
 
     s_tick_div = 0u;
     s_tick_count_10hz = 0u;
@@ -715,7 +718,7 @@ bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
         int16_t top_y;
         int16_t bot_y;
 
-        if (e->destroyed || !e->airborne) {
+        if (e->destroyed || e->falling || e->crashed) {
             continue;
         }
 
@@ -746,6 +749,43 @@ bool enemy_planes_check_shot_hit(uint16_t shot_world_x, int16_t shot_center_y,
     return false;
 }
 
+bool enemy_planes_check_fragment_hit(uint16_t world_x, int16_t center_y, uint8_t half_size,
+                                     uint16_t *hit_world_x, int16_t *hit_center_y,
+                                     bool *big_explosion)
+{
+    for (uint8_t i = 0; i < MAX_ENEMIES; ++i) {
+        enemy_plane_t *e = &s_enemies[i];
+        int16_t dx;
+        int16_t enemy_center_y;
+        int16_t dy;
+
+        if (e->destroyed || e->falling || e->crashed) {
+            continue;
+        }
+
+        dx = wrapped_world_delta(e->world_x, world_x);
+        enemy_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        dy = (int16_t)(enemy_center_y - center_y);
+
+        if (dx >= -(int16_t)half_size && dx <= (int16_t)half_size &&
+            dy >= -(int16_t)half_size && dy <= (int16_t)half_size) {
+            enemy_start_falling(e);
+            if (hit_world_x != 0) {
+                *hit_world_x = e->world_x;
+            }
+            if (hit_center_y != 0) {
+                *hit_center_y = enemy_center_y;
+            }
+            if (big_explosion != 0) {
+                *big_explosion = false;
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player_plane_y,
                                          uint16_t *hit_world_x, int16_t *hit_center_y,
                                          bool *big_explosion)
@@ -757,7 +797,7 @@ bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player
         int16_t player_center_y;
         int16_t dy;
 
-        if (e->destroyed || !e->airborne) {
+        if (e->destroyed || e->falling || e->crashed || !e->airborne) {
             continue;
         }
 

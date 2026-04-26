@@ -48,6 +48,9 @@ typedef struct flight_state_s {
     uint8_t stall_tick;
     bool falling;
     bool crashed;
+    int8_t fall_dx;
+    int8_t fall_dy;
+    int8_t fall_countdown;
 } flight_state_t;
 
 static flight_state_t s_flight;
@@ -358,11 +361,16 @@ static void enter_stall_state(void)
 
 static void start_falling_from_damage(void)
 {
+    int16_t dx = (int16_t)((s_flight.speed * s_sintab[((uint8_t)s_flight.plane_pitch + 4u) & 15u]) / 256);
+    int16_t dy = (int16_t)((s_flight.speed * s_sintab[(uint8_t)s_flight.plane_pitch & 15u]) / 256);
+
     s_flight.falling = true;
     s_flight.crashed = false;
     s_flight.airborne = true;
     s_flight.stalled_high = false;
-    s_flight.plane_vy = 2;
+    s_flight.plane_vy = (int8_t)(-dy);
+    s_flight.fall_dx = (int8_t)dx;
+    s_flight.fall_dy = (int8_t)(-dy);
 }
 
 static void mark_plane_crash(uint16_t crash_world_x, int16_t crash_center_y,
@@ -777,7 +785,7 @@ bool flight_is_falling(void)
 
 void flight_apply_debris_hit(void)
 {
-    if (s_flight.crashed || s_flight.falling || !s_flight.airborne) {
+    if (s_flight.crashed || s_flight.falling) {
         return;
     }
 
