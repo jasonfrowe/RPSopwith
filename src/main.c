@@ -24,7 +24,10 @@ typedef enum game_mode_e {
 
 enum {
     GAME_TICK_DIV_10HZ = 6u,
-    LEVEL_COMPLETE_DELAY_TICKS_10HZ = 20u,
+    WIN_TIMEOUT_TICKS_10HZ = 72u,
+    WIN_FRAME_HOLD_TICKS_10HZ = 18u,
+    WIN_FRAME_RIGHT_BASE = 40u,
+    WIN_FRAME_FLIPPED_BASE = 44u,
     GAME_OVER_DELAY_TICKS_10HZ = 40u,
     MAX_GAME_LEVEL = 10u,
     STATUS_ROW_MAIN = 14u,
@@ -37,6 +40,7 @@ static uint8_t s_mode_timer_10hz = 0u;
 static uint8_t s_current_level = 1u;
 static bool s_current_enemies_enabled = true;
 static bool s_crash_accounted = false;
+static bool s_win_flipped = false;
 
 static bool init_video(void)
 {
@@ -163,11 +167,26 @@ static void advance_to_next_level(void)
     s_crash_accounted = false;
 }
 
+static void update_win_animation_frame(void)
+{
+    uint8_t ticks_left = s_mode_timer_10hz;
+    uint8_t block;
+    uint8_t frame_index;
+
+    if (ticks_left == 0u) { ticks_left = 1u; }
+    block = (uint8_t)((ticks_left - 1u) / WIN_FRAME_HOLD_TICKS_10HZ);
+    if (block > 3u) { block = 3u; }
+    frame_index = (uint8_t)((s_win_flipped ? WIN_FRAME_FLIPPED_BASE : WIN_FRAME_RIGHT_BASE) + block);
+    xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, xram_sprite_ptr,
+                     (uint16_t)(PLAYER_DATA + ((unsigned)frame_index * PLAYER_FRAME_SIZE)));
+}
+
 static void enter_level_complete_mode(void)
 {
+    s_win_flipped = flight_plane_orient();
     s_game_mode = GAME_MODE_LEVEL_COMPLETE;
     s_mode_tick_div = 0u;
-    s_mode_timer_10hz = LEVEL_COMPLETE_DELAY_TICKS_10HZ;
+    s_mode_timer_10hz = WIN_TIMEOUT_TICKS_10HZ;
     show_level_complete_text();
 }
 
@@ -181,7 +200,6 @@ static void enter_game_over_mode(void)
 
 static void update_player_projectiles(const input_actions_t *actions)
 {
-    enemy_planes_update(flight_world_x());
     projectiles_update(flight_world_x(), actions);
     ground_targets_update(flight_world_x());
     ambient_flocks_update(flight_world_x());
@@ -224,6 +242,7 @@ static void update_player(const input_actions_t *actions)
 
 static void update_playing_mode(const input_actions_t *actions)
 {
+    enemy_planes_update(flight_world_x());
     update_player(actions);
     update_player_projectiles(actions);
 
@@ -301,6 +320,9 @@ int main(void)
         } else if (s_game_mode == GAME_MODE_PLAYING) {
             update_playing_mode(&actions);
         } else {
+            if (s_game_mode == GAME_MODE_LEVEL_COMPLETE) {
+                update_win_animation_frame();
+            }
             update_nonplaying_mode();
         }
     }

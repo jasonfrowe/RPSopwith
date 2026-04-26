@@ -15,6 +15,7 @@ bool enemy_planes_check_fragment_hit(uint16_t world_x, int16_t center_y, uint8_t
                                      uint16_t *hit_world_x, int16_t *hit_center_y,
                                      bool *big_explosion);
 bool enemy_planes_check_player_collision(uint16_t player_world_x, int16_t player_plane_y,
+                                         uint16_t player_prev_world_x, int16_t player_prev_plane_y,
                                          uint16_t *hit_world_x, int16_t *hit_center_y,
                                          bool *big_explosion);
 
