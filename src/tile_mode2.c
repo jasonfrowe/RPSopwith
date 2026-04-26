@@ -192,11 +192,11 @@ int16_t tile_mode2_ground_y_at_world_x(uint16_t world_x_px)
 
 void tile_mode2_apply_crater(uint16_t impact_world_x, uint8_t radius_px, uint8_t max_depth_px)
 {
+    static const uint8_t s_crater_profile_8[8] = {1u, 2u, 2u, 3u, 3u, 2u, 2u, 1u};
     uint16_t world_width = (uint16_t)(GROUND_WIDTH * 8u);
     uint16_t wrapped_impact_x = (uint16_t)(impact_world_x % world_width);
-    uint16_t tile_x = (uint16_t)((wrapped_impact_x >> 3) % GROUND_WIDTH);
-    uint16_t tile_base_x = (uint16_t)(tile_x << 3);
-    uint8_t center = (uint8_t)(wrapped_impact_x & 0x07u);
+    int16_t start_dx;
+    int16_t end_dx;
 
     if (max_depth_px == 0u) {
         return;
@@ -206,14 +206,23 @@ void tile_mode2_apply_crater(uint16_t impact_world_x, uint8_t radius_px, uint8_t
         radius_px = 1u;
     }
 
-    for (uint8_t i = 0u; i < 8u; ++i) {
-        uint16_t world_x = (uint16_t)((tile_base_x + i) % world_width);
+    start_dx = (int16_t)(-(int16_t)radius_px);
+    end_dx = (int16_t)radius_px;
+
+    for (int16_t dx = start_dx; dx <= end_dx; ++dx) {
+        uint16_t world_x = (uint16_t)wrap_world_px((int16_t)wrapped_impact_x + dx);
+        uint16_t tile_x = (uint16_t)((world_x >> 3) % GROUND_WIDTH);
         uint8_t old_y = cached_ground_y(world_x);
-        int16_t abs_dx = (i > center) ? (int16_t)(i - center) : (int16_t)(center - i);
-        int16_t base_depth = (int16_t)max_depth_px -
-                             (int16_t)(((uint16_t)abs_dx * max_depth_px) / radius_px);
-        int8_t rough = (int8_t)(((uint8_t)(wrapped_impact_x + (uint16_t)(i * 13u)) & 0x03u) - 1);
-        int16_t depth = base_depth + rough;
+        int16_t abs_dx = (dx < 0) ? (int16_t)(-dx) : dx;
+        int16_t depth;
+
+        if (radius_px == 4u && abs_dx <= 4) {
+            uint8_t profile_depth = s_crater_profile_8[(uint8_t)(dx + 4)];
+            depth = (int16_t)((profile_depth * max_depth_px) / 3u);
+        } else {
+            depth = (int16_t)max_depth_px -
+                    (int16_t)(((uint16_t)abs_dx * max_depth_px) / (uint16_t)(radius_px + 1u));
+        }
 
         if (depth < 0) {
             depth = 0;
@@ -229,10 +238,10 @@ void tile_mode2_apply_crater(uint16_t impact_world_x, uint8_t radius_px, uint8_t
             }
             s_ground_y_cache[world_x] = new_y;
             s_ground_y_valid[world_x] = 1u;
+
+            update_visual_column_from_cache(tile_x);
         }
     }
-
-    update_visual_column_from_cache(tile_x);
 }
 
 void tile_hud_init(void) {
