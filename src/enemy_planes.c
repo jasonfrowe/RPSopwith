@@ -497,6 +497,7 @@ static void enemy_start_falling(enemy_plane_t *e)
 {
     int8_t impact_vx;
     int8_t impact_vy;
+    int16_t plane_center_y;
 
     if (e->destroyed || e->falling || e->crashed) {
         return;
@@ -514,6 +515,13 @@ static void enemy_start_falling(enemy_plane_t *e)
     }
     e->fall_countdown = FALL_COUNT_RESET;
     e->smoke_cooldown_10hz = 0u;
+
+    plane_center_y = (int16_t)(e->plane_y + PLANE_HITBOX_CENTER_Y_OFFSET_PX);
+    if (ambient_flocks_scatter_at(e->world_x,
+                                  plane_center_y,
+                                  (uint8_t)PLANE_HITBOX_HALF_WIDTH_LEFT_PX)) {
+        ambient_birds_spawn_splat(e->world_x, plane_center_y);
+    }
 }
 
 static void enemy_tick_falling(enemy_plane_t *e)
