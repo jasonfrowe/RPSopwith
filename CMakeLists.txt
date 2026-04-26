@@ -25,5 +25,8 @@ rp6502_executable(RPSopwith
 
 target_sources(RPSopwith PRIVATE
     src/main.c
+    src/tile_mode2.c
+    src/sprite_mode5.c
+    src/text_mode1.c
 )
 
