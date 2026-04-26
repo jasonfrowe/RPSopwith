@@ -615,9 +615,6 @@ static void flight_tick_10hz(const input_actions_t *actions)
         if (s_flight.airborne) {
             if (!s_flight.stalled_high && nspeed < MIN_SPEED) {
                 --nspeed;
-                if (s_gravity_bias[nangle] <= -3 && nspeed > 0) {
-                    --nspeed;
-                }
                 update = true;
             } else {
                 speed_limit = (int16_t)(MIN_SPEED + s_flight.throttle + s_gravity_bias[nangle]);
