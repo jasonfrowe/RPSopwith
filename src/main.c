@@ -15,7 +15,7 @@
 #include "text_mode1.h"
 #include "menu.h"
 
-static bool init_graphics(void)
+static bool init_video(void)
 {
     int rc;
 
@@ -30,14 +30,18 @@ static bool init_graphics(void)
     sprite_mode5_init_targets();
     sprite_mode5_init_projectiles();
     text_mode1_init();
+
+    return true;
+}
+
+static void init_world(void)
+{
     resources_init();
     ground_targets_init();
     projectiles_init();
     enemy_planes_init();
     ambient_flocks_init();
     ambient_birds_init();
-
-    return true;
 }
 
 static uint8_t s_vsync_last = 0;
@@ -56,6 +60,15 @@ static void update_player_projectiles(const input_actions_t *actions)
     ground_targets_update(flight_world_x());
     ambient_flocks_update(flight_world_x());
     ambient_birds_update(flight_world_x());
+}
+
+static void render_menu_scene(void)
+{
+    uint16_t camera_world_x = flight_world_x();
+
+    ground_targets_update(camera_world_x);
+    ambient_flocks_update(camera_world_x);
+    ambient_birds_update(camera_world_x);
 }
 
 static void update_player(const input_actions_t *actions)
@@ -88,10 +101,12 @@ int main(void)
 
     input_init();
 
-    if (!init_graphics()) {
+    if (!init_video()) {
         return 1;
     }
 
+    init_world();
+    flight_init();
     menu_init();
 
     while (true) {
@@ -100,6 +115,7 @@ int main(void)
         input_poll(&actions);
 
         if (menu_is_active()) {
+            render_menu_scene();
             menu_update(&actions);
         } else {
             update_player(&actions);

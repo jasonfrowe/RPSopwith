@@ -14,7 +14,7 @@
 
 enum {
     MENU_MIN_LEVEL = 1,
-    MENU_MAX_LEVEL = 99
+    MENU_MAX_LEVEL = 10
 };
 
 typedef enum title_item_e {
@@ -25,7 +25,7 @@ typedef enum title_item_e {
 } title_item_t;
 
 static bool s_menu_active = true;
-static title_item_t s_title_item = TITLE_ITEM_LEVEL;
+static title_item_t s_title_item = TITLE_ITEM_START;
 static uint8_t s_start_level = 1u;
 static bool s_computer_enemies_enabled = true;
 static input_actions_t s_prev_actions;
@@ -103,7 +103,7 @@ static void draw_title_menu(void)
 
     text_mode1_clear();
 
-    text_mode1_put_string(14, 6, 15, "S O P W I T H");
+    text_mode1_put_string(13, 6, 15, "S O P W I T H");
 
     build_level_line(line, (s_title_item == TITLE_ITEM_LEVEL), s_start_level);
     text_mode1_put_string(14, 10,
@@ -111,14 +111,16 @@ static void draw_title_menu(void)
                           line);
 
     build_enemies_line(line, (s_title_item == TITLE_ITEM_ENEMIES), s_computer_enemies_enabled);
-    text_mode1_put_string(9, 12,
+    text_mode1_put_string(9, 11,
                           (s_title_item == TITLE_ITEM_ENEMIES) ? 14 : 11,
                           line);
 
     build_start_line(line, (s_title_item == TITLE_ITEM_START));
-    text_mode1_put_string(16, 14,
+    text_mode1_put_string(16, 12,
                           (s_title_item == TITLE_ITEM_START) ? 14 : 11,
                           line);
+
+    text_mode1_render_score();
 }
 
 static void start_new_game(void)
@@ -146,7 +148,7 @@ static void start_new_game(void)
 void menu_init(void)
 {
     s_menu_active = true;
-    s_title_item = TITLE_ITEM_LEVEL;
+    s_title_item = TITLE_ITEM_START;
     s_start_level = 1u;
     s_computer_enemies_enabled = true;
     s_prev_actions = (input_actions_t){0};
@@ -158,6 +160,8 @@ void menu_update(const input_actions_t *actions)
 {
     bool up_pressed = pressed_now(actions->up, s_prev_actions.up);
     bool down_pressed = pressed_now(actions->down, s_prev_actions.down);
+    bool left_pressed = pressed_now(actions->left, s_prev_actions.left);
+    bool right_pressed = pressed_now(actions->right, s_prev_actions.right);
     bool x_pressed = pressed_now(actions->fire, s_prev_actions.fire);
     bool start_pressed = pressed_now(actions->start, s_prev_actions.start);
 
@@ -180,17 +184,23 @@ void menu_update(const input_actions_t *actions)
         draw_title_menu();
     }
 
-    if (x_pressed) {
-        if (s_title_item == TITLE_ITEM_LEVEL) {
-            ++s_start_level;
-            if (s_start_level > MENU_MAX_LEVEL) {
-                s_start_level = MENU_MIN_LEVEL;
-            }
+    if (s_title_item == TITLE_ITEM_LEVEL) {
+        if (left_pressed && s_start_level > MENU_MIN_LEVEL) {
+            --s_start_level;
             draw_title_menu();
-        } else if (s_title_item == TITLE_ITEM_ENEMIES) {
+        }
+
+        if (right_pressed && s_start_level < MENU_MAX_LEVEL) {
+            ++s_start_level;
+            draw_title_menu();
+        }
+    }
+
+    if (x_pressed) {
+        if (s_title_item == TITLE_ITEM_ENEMIES) {
             s_computer_enemies_enabled = !s_computer_enemies_enabled;
             draw_title_menu();
-        } else {
+        } else if (s_title_item == TITLE_ITEM_START) {
             start_new_game();
         }
     }
