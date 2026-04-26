@@ -10,7 +10,7 @@ unsigned ENEMY_CONFIG;
 
 void sprite_mode5_players_init(void){
 
-    PLAYER_CONFIG = TILE_HUD_CONFIG + sizeof(vga_mode2_config_t); // Add after hud config
+    PLAYER_CONFIG = TILE_GROUND_CONFIG + (2u * sizeof(vga_mode2_config_t)); // Add after hud config
 
     // Start off-screen; flight_init will set the correct runway position on the first frame
     xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, x_pos_px, 160);
@@ -108,4 +108,10 @@ void sprite_mode5_init_projectiles(void) {
         RIA.rw0 = projectiles_palette[i] & 0xFF;
         RIA.rw0 = projectiles_palette[i] >> 8;
     }
+}
+
+void sprite_mode5_set_position(int16_t x, int16_t y)
+{
+    xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, x_pos_px, x);
+    xram0_struct_set(PLAYER_CONFIG, vga_mode5_sprite_t, y_pos_px, y);
 }
