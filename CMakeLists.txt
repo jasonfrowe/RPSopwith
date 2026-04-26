@@ -25,6 +25,7 @@ rp6502_executable(RPSopwith
 
 target_sources(RPSopwith PRIVATE
     src/main.c
+    src/menu.c
     src/input.c
     src/flight.c
     src/enemy_planes.c
