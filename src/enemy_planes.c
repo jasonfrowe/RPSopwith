@@ -557,7 +557,7 @@ static void enemy_enforce_territory(enemy_plane_t *e)
 static void enemy_tick_10hz(enemy_plane_t *e)
 {
     int16_t speed_limit;
-    int16_t max_plane_top;
+    int16_t terrain_y;
     bool has_target;
     bool player_alive;
 
@@ -642,6 +642,12 @@ static void enemy_tick_10hz(enemy_plane_t *e)
     enemy_enforce_territory(e);
 
     e->plane_y = clamp_i16(e->plane_y, (int16_t)(-SCREEN_HEIGHT), SCREEN_HEIGHT - 1);
+
+    terrain_y = flight_terrain_y_at(e->world_x);
+    if (e->plane_y >= (terrain_y - PLAYER_GROUND_CONTACT_FROM_TOP_PX)) {
+        enemy_start_falling(e);
+        return;
+    }
 
     if (has_target) {
         uint16_t hit_world_x = 0u;
