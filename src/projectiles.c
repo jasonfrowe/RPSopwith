@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "constants.h"
+#include "enemy_planes.h"
 #include "flight.h"
 #include "ground_targets.h"
 #include "projectiles.h"
@@ -15,6 +16,7 @@ typedef struct projectile_s {
     int8_t vx;
     int8_t vy;
     uint8_t frame_index;
+    uint8_t owner;
     uint8_t life_ticks;
     uint8_t gravity_ticks;
     bool active;
@@ -24,6 +26,8 @@ typedef struct projectile_s {
 } projectile_t;
 
 enum {
+    PROJ_OWNER_PLAYER = 0,
+    PROJ_OWNER_ENEMY = 1,
     SHOT_FRAME = 0,
     SMOKE_FRAME = 1,
     BOMB_FRAME_BASE = 2,
@@ -174,6 +178,7 @@ static void init_explosion_fragment(projectile_t *p, uint16_t world_x, int16_t c
     p->world_x = wrap_world_x((int16_t)world_x + p->vx);
     p->center_y = (int16_t)(center_y + p->vy);
     p->frame_index = (uint8_t)(DEBRIS_FRAME_BASE + ((next_rand16() >> 5) & (DEBRIS_FRAME_COUNT - 1u)));
+    p->owner = PROJ_OWNER_PLAYER;
     p->life_ticks = EXPL_LIFE_TICKS;
     p->gravity_ticks = 0u;
     p->bomb = false;
@@ -241,6 +246,7 @@ static bool spawn_shot(void)
         p->vx = projectile_dx_for_speed(pitch, shot_speed);
         p->vy = projectile_dy_for_speed(pitch, shot_speed);
         p->frame_index = SHOT_FRAME;
+        p->owner = PROJ_OWNER_PLAYER;
         p->bomb = false;
         p->explosion = false;
         p->smoke = false;
@@ -281,6 +287,7 @@ static bool spawn_bomb(void)
         p->vx = projectile_dx_for_speed(pitch, plane_speed);
         p->vy = projectile_dy_for_speed(pitch, plane_speed);
         p->frame_index = bomb_frame_for_velocity(p->vx, p->vy);
+        p->owner = PROJ_OWNER_PLAYER;
         p->bomb = true;
         p->explosion = false;
         p->smoke = false;
@@ -314,6 +321,7 @@ static void spawn_smoke(void)
         p->vx = (int8_t)(plane_vx / 2);
         p->vy = (int8_t)(plane_vy / 2 - 1);
         p->frame_index = SMOKE_FRAME;
+        p->owner = PROJ_OWNER_PLAYER;
         p->bomb = false;
         p->explosion = false;
         p->smoke = true;
@@ -322,6 +330,34 @@ static void spawn_smoke(void)
         p->active = true;
         break;
     }
+}
+
+bool projectiles_spawn_smoke_trail(uint16_t world_x, int16_t center_y,
+                                   int8_t vx, int8_t vy)
+{
+    for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+        projectile_t *p = &s_projectiles[i];
+
+        if (p->active) {
+            continue;
+        }
+
+        p->world_x = wrap_world_x((int16_t)world_x - (int16_t)(vx * 2));
+        p->center_y = (int16_t)(center_y - (vy * 2));
+        p->vx = (int8_t)(vx / 2);
+        p->vy = (int8_t)(vy / 2 - 1);
+        p->frame_index = SMOKE_FRAME;
+        p->owner = PROJ_OWNER_PLAYER;
+        p->bomb = false;
+        p->explosion = false;
+        p->smoke = true;
+        p->life_ticks = SMOKE_LIFE_TICKS;
+        p->gravity_ticks = 0u;
+        p->active = true;
+        return true;
+    }
+
+    return false;
 }
 
 static bool projectile_update_explosion(projectile_t *p)
@@ -462,9 +498,13 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
 static void projectile_update_shot(projectile_t *p)
 {
     ground_target_hit_type_t hit_target;
+    bool hit_enemy;
+    bool big_explosion = false;
     uint16_t hit_world_x = 0u;
     int16_t hit_center_y = 0;
     int16_t score_delta = 0;
+    int16_t plane_dx;
+    int16_t plane_dy;
     int16_t terrain_y;
 
     if (p->life_ticks > 0u) {
@@ -477,10 +517,35 @@ static void projectile_update_shot(projectile_t *p)
 
     p->center_y = (int16_t)(p->center_y + p->vy);
 
+    if (p->owner == PROJ_OWNER_ENEMY && !flight_is_crashed()) {
+        plane_dx = world_delta_to_screen_x(p->world_x, flight_world_x_physics());
+        plane_dy = (int16_t)(p->center_y -
+                             (int16_t)(flight_plane_y_physics() + (PLAYER_SPRITE_SIZE_PX / 2)));
+        if (plane_dx >= -7 && plane_dx <= 7 && plane_dy >= -7 && plane_dy <= 7) {
+            flight_apply_debris_hit();
+            p->active = false;
+            return;
+        }
+    }
+
     terrain_y = flight_terrain_y_at(wrap_world_x((int16_t)p->world_x + 4));
-    hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
-                                               &hit_world_x, &hit_center_y,
-                                               &score_delta);
+
+    if (p->owner == PROJ_OWNER_PLAYER) {
+        hit_enemy = enemy_planes_check_shot_hit(p->world_x, p->center_y,
+                                                &hit_world_x, &hit_center_y,
+                                                &score_delta, &big_explosion);
+        if (hit_enemy) {
+            p->active = false;
+            text_mode1_add_score(score_delta);
+            return;
+        }
+
+        hit_target = ground_targets_check_shot_hit(p->world_x, p->center_y,
+                                                   &hit_world_x, &hit_center_y,
+                                                   &score_delta);
+    } else {
+        hit_target = GROUND_TARGET_HIT_NONE;
+    }
 
     if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
         spawn_explosion_from(p, hit_world_x, hit_center_y, true);
@@ -498,6 +563,36 @@ static void projectile_update_shot(projectile_t *p)
                p->center_y >= (SCREEN_HEIGHT + PROJECTILE_SPRITE_SIZE_PX)) {
         p->active = false;
     }
+}
+
+bool projectiles_spawn_enemy_shot(uint16_t world_x, int16_t center_y,
+                                  uint8_t angle, uint8_t speed)
+{
+    uint8_t shot_speed = (uint8_t)(speed + SHOT_SPEED);
+
+    for (uint8_t i = 0; i < MAX_COMBAT_PROJECTILES; ++i) {
+        projectile_t *p = &s_projectiles[i];
+
+        if (p->active) {
+            continue;
+        }
+
+        p->world_x = world_x;
+        p->center_y = center_y;
+        p->vx = projectile_dx_for_speed(angle, shot_speed);
+        p->vy = projectile_dy_for_speed(angle, shot_speed);
+        p->frame_index = SHOT_FRAME;
+        p->owner = PROJ_OWNER_ENEMY;
+        p->bomb = false;
+        p->explosion = false;
+        p->smoke = false;
+        p->life_ticks = SHOT_LIFE_TICKS;
+        p->gravity_ticks = 0u;
+        p->active = true;
+        return true;
+    }
+
+    return false;
 }
 
 static void update_resource_tick(void)

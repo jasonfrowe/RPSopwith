@@ -4,6 +4,7 @@
 #include "constants.h"
 #include "input.h"
 #include "flight.h"
+#include "enemy_planes.h"
 #include "ground_targets.h"
 #include "resources.h"
 #include "projectiles.h"
@@ -29,6 +30,7 @@ static bool init_graphics(void)
     resources_init();
     ground_targets_init();
     projectiles_init();
+    enemy_planes_init();
 
     return true;
 }
@@ -44,6 +46,7 @@ static void wait_for_vsync(void)
 
 static void update_player_projectiles(const input_actions_t *actions)
 {
+    enemy_planes_update(flight_world_x());
     projectiles_update(flight_world_x(), actions);
     ground_targets_update(flight_world_x());
 }
