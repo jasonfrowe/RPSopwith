@@ -31,6 +31,9 @@ enum {
     SCORE_DELTA_OX = -200,
     TARGETS_FPS_DIV = 6u,
     TARGET_MAX_VERTICAL_FIRE_PX = 100,
+    TARGET_LEVEL2_FIRE_PERIOD_SCALE = 5u,
+    TARGET_LEVEL3_FIRE_PERIOD_SCALE = 3u,
+    TARGET_LEVEL4_PLUS_FIRE_PERIOD_SCALE = 2u,
     TARGET_MAX_ORIENT = 8u,
     TARGET_TYPE_TRUCK = 4u,
     TARGET_TYPE_TANKER_TRUCK = 5u,
@@ -70,6 +73,7 @@ static const ground_target_t s_targets[] = {
 static uint8_t s_target_count;
 static int16_t s_target_ground_y[MAX_TARGETS];
 static bool s_target_destroyed[MAX_TARGETS];
+static uint8_t s_target_fire_cooldown[MAX_TARGETS];
 static uint8_t s_level = 1u;
 static uint8_t s_tick_div;
 static uint16_t s_tick_count_10hz;
@@ -162,6 +166,29 @@ static int16_t target_fire_range_px(void)
     return target_range;
 }
 
+static int16_t target_fire_distance_metric(int16_t dx, int16_t dy)
+{
+    dx = abs_i16(dx);
+    dy = abs_i16(dy);
+
+    return (int16_t)(dx + dy + (dy >> 1));
+}
+
+static uint8_t target_fire_period_ticks(uint8_t aggression)
+{
+    uint8_t scale;
+
+    if (s_level <= 2u) {
+        scale = TARGET_LEVEL2_FIRE_PERIOD_SCALE;
+    } else if (s_level == 3u) {
+        scale = TARGET_LEVEL3_FIRE_PERIOD_SCALE;
+    } else {
+        scale = TARGET_LEVEL4_PLUS_FIRE_PERIOD_SCALE;
+    }
+
+    return (uint8_t)(aggression * scale);
+}
+
 static void update_target_fire(void)
 {
     uint16_t player_world_x;
@@ -195,6 +222,11 @@ static void update_target_fire(void)
             continue;
         }
 
+        if (s_target_fire_cooldown[i] > 0u) {
+            --s_target_fire_cooldown[i];
+            continue;
+        }
+
         if (s_level == 2u && (s_tick_count_10hz % aggression) != (uint16_t)(aggression - 1u)) {
             continue;
         }
@@ -205,13 +237,16 @@ static void update_target_fire(void)
         dx = world_delta_to_screen_x(player_world_x, target->world_x);
         dy = (int16_t)(player_center_y - target_center_y);
 
-        if (abs_i16(dx) > fire_range_px || abs_i16(dy) > TARGET_MAX_VERTICAL_FIRE_PX) {
+        if (abs_i16(dy) > TARGET_MAX_VERTICAL_FIRE_PX ||
+            target_fire_distance_metric(dx, dy) > fire_range_px) {
             continue;
         }
 
         shot_world_x = wrap_world_x((int16_t)target->world_x + (TARGETS_SPRITE_SIZE_PX / 2));
         angle = angle_from_delta(dx, dy);
-        (void)projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u);
+        if (projectiles_spawn_enemy_shot(shot_world_x, target_center_y, angle, 0u)) {
+            s_target_fire_cooldown[i] = target_fire_period_ticks(aggression);
+        }
     }
 }
 
@@ -236,10 +271,15 @@ void ground_targets_init(void)
     for (i = 0; i < s_target_count; ++i) {
         s_target_ground_y[i] = tile_mode2_ground_y_at_world_x(s_targets[i].world_x);
         s_target_destroyed[i] = false;
+        s_target_fire_cooldown[i] = 0u;
     }
 
     s_tick_div = 0u;
     s_tick_count_10hz = 0u;
+
+    for (; i < MAX_TARGETS; ++i) {
+        s_target_fire_cooldown[i] = 0u;
+    }
 
     for (i = 0; i < MAX_TARGETS; ++i) {
         sprite_mode5_set_target(i, -32, -32, 0, TARGETS_PALETTE_ADDR, false);
