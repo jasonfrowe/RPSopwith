@@ -2,6 +2,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "constants.h"
+#include "tile_mode2.h"
+#include "sprite_mode5.h"
+#include "text_mode1.h"
 
 static bool init_graphics(void)
 {
@@ -11,6 +14,12 @@ static bool init_graphics(void)
     if (rc < 0) {
         return false;
     }
+
+    tile_mode2_init();
+    tile_hud_init();
+    sprite_mode5_players_init();
+    sprite_mode5_init_targets();
+    text_mode1_init();
 
     return true;
 }
