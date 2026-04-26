@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "ambient_birds.h"
+#include "ambient_flocks.h"
 #include "constants.h"
 #include "enemy_planes.h"
 #include "flight.h"
@@ -642,6 +644,24 @@ static void enemy_tick_10hz(enemy_plane_t *e)
 
         if (hit_type != GROUND_TARGET_HIT_NONE) {
             enemy_start_falling(e);
+            return;
+        }
+    }
+
+    {
+        int16_t plane_center_y = (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2));
+        bool flock_hit = ambient_flocks_scatter_at(e->world_x,
+                                                   plane_center_y,
+                                                   (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+        bool bird_hit = ambient_birds_check_plane_hit(e->world_x,
+                                                      plane_center_y,
+                                                      (uint8_t)(PLAYER_SPRITE_SIZE_PX / 2));
+
+        if (flock_hit || bird_hit) {
+            enemy_start_falling(e);
+            if (flock_hit) {
+                ambient_birds_spawn_splat(e->world_x, plane_center_y);
+            }
             return;
         }
     }
