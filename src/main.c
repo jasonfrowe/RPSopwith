@@ -2,14 +2,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "constants.h"
+#include "input.h"
+#include "flight.h"
 #include "tile_mode2.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
 
 static bool init_graphics(void)
 {
-    // 320×240 canvas
     int rc;
+
     rc = xreg_vga_canvas(1);
     if (rc < 0) {
         return false;
@@ -19,30 +21,37 @@ static bool init_graphics(void)
     tile_hud_init();
     sprite_mode5_players_init();
     sprite_mode5_init_targets();
+    sprite_mode5_init_projectiles();
     text_mode1_init();
 
     return true;
 }
 
-uint8_t vsync_last = 0;
+static uint8_t s_vsync_last = 0;
+
+static void wait_for_vsync(void)
+{
+    while (RIA.vsync == s_vsync_last) {
+    }
+    s_vsync_last = RIA.vsync;
+}
 
 int main(void)
 {
+    input_actions_t actions;
 
-    // Initialize input
-    xreg(0, 0, 0, KEYBOARD_INPUT);
-    xreg(0, 0, 2, GAMEPAD_INPUT);
+    input_init();
 
-    // Initialise graphics
     if (!init_graphics()) {
         return 1;
     }
 
-    // Main loop
-    while (true) {
-        // 1. SYNC
-        if (RIA.vsync == vsync_last) continue;
-        vsync_last = RIA.vsync;
-    }
+    flight_init();
 
+    while (true) {
+        wait_for_vsync();
+
+        input_poll(&actions);
+        flight_update(&actions);
+    }
 }
