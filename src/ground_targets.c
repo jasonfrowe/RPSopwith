@@ -350,6 +350,32 @@ bool ground_targets_all_enemy_targets_destroyed(void)
     return enemy_targets > 0u;
 }
 
+uint8_t ground_targets_get_minimap_buildings(uint16_t *world_x, int16_t *ground_y,
+                                             uint8_t max_points)
+{
+    uint8_t count = 0u;
+
+    for (uint8_t i = 0; i < s_target_count && count < max_points; ++i) {
+        uint8_t type = s_targets[i].type;
+
+        if (s_target_destroyed[i]) {
+            continue;
+        }
+
+        if (type != TARGET_TYPE_BUILDING &&
+            type != TARGET_TYPE_EXPLOSIVE_BUILDING &&
+            type != TARGET_TYPE_FRIENDLY_BUILDING) {
+            continue;
+        }
+
+        world_x[count] = s_targets[i].world_x;
+        ground_y[count] = s_target_ground_y[i];
+        ++count;
+    }
+
+    return count;
+}
+
 ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
                                                   uint16_t *hit_world_x, int16_t *hit_center_y,
                                                   int16_t *score_delta)
