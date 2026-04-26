@@ -299,12 +299,9 @@ static bool plane_is_in_home_landing_range(void)
 static bool plane_is_on_home_runway(void)
 {
     int16_t dx = wrapped_world_delta(PLAYER_START_WORLD_X_PX, s_flight.world_x);
-    int16_t home_ground_y = player_runway_ground_y();
-    int16_t grounded_top_y = plane_top_y_for_ground(home_ground_y);
 
     return dx >= -8 &&
-           dx <= (PLAYER_RUNWAY_SPAN_PX + 8) &&
-           abs_i16((int16_t)(s_flight.plane_y - grounded_top_y)) <= 1;
+           dx <= (PLAYER_RUNWAY_SPAN_PX + 8);
 }
 
 static void update_autohome(uint8_t *nangle, int16_t *nspeed)

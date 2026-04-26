@@ -642,7 +642,7 @@ static void enemy_tick_10hz(enemy_plane_t *e)
 
     e->plane_y = clamp_i16(e->plane_y, (int16_t)(-SCREEN_HEIGHT), SCREEN_HEIGHT - 1);
 
-    {
+    if (has_target) {
         uint16_t hit_world_x = 0u;
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
