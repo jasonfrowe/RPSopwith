@@ -103,20 +103,20 @@ static void draw_title_menu(void)
 
     text_mode1_clear();
 
-    text_mode1_put_string(12, 6, 15, "S O P W I T H");
+    text_mode1_put_string(14, 6, 15, "S O P W I T H");
 
     build_level_line(line, (s_title_item == TITLE_ITEM_LEVEL), s_start_level);
-    text_mode1_put_string(12, 10,
+    text_mode1_put_string(14, 10,
                           (s_title_item == TITLE_ITEM_LEVEL) ? 14 : 11,
                           line);
 
     build_enemies_line(line, (s_title_item == TITLE_ITEM_ENEMIES), s_computer_enemies_enabled);
-    text_mode1_put_string(7, 12,
+    text_mode1_put_string(9, 12,
                           (s_title_item == TITLE_ITEM_ENEMIES) ? 14 : 11,
                           line);
 
     build_start_line(line, (s_title_item == TITLE_ITEM_START));
-    text_mode1_put_string(15, 14,
+    text_mode1_put_string(16, 14,
                           (s_title_item == TITLE_ITEM_START) ? 14 : 11,
                           line);
 }
