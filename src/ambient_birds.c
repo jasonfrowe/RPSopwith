@@ -219,7 +219,8 @@ void ambient_birds_spawn_splat(uint16_t world_x, int16_t center_y)
     s_splat_life[slot] = BIRD_SPLAT_LIFE_TICKS;
 }
 
-bool ambient_birds_check_plane_hit(uint16_t world_x, int16_t center_y, uint8_t half_size_px)
+bool ambient_birds_check_plane_hit(uint16_t world_x, int16_t center_y,
+                                   uint8_t half_width_px, uint8_t half_height_px)
 {
     uint8_t i;
 
@@ -228,7 +229,7 @@ bool ambient_birds_check_plane_hit(uint16_t world_x, int16_t center_y, uint8_t h
             continue;
         }
 
-        if (bird_box_intersects(world_x, center_y, half_size_px, half_size_px, &s_birds[i])) {
+        if (bird_box_intersects(world_x, center_y, half_width_px, half_height_px, &s_birds[i])) {
             return hit_bird(i);
         }
     }
