@@ -1,16 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "ambient_birds.h"
-#include "ambient_flocks.h"
-#include "enemy_planes.h"
-#include "flight.h"
-#include "ground_targets.h"
 #include "menu.h"
-#include "projectiles.h"
-#include "resources.h"
 #include "text_mode1.h"
-#include "tile_mode2.h"
 
 enum {
     MENU_MIN_LEVEL = 1,
@@ -25,6 +17,7 @@ typedef enum title_item_e {
 } title_item_t;
 
 static bool s_menu_active = true;
+static bool s_start_requested = false;
 static title_item_t s_title_item = TITLE_ITEM_START;
 static uint8_t s_start_level = 1u;
 static bool s_computer_enemies_enabled = true;
@@ -132,36 +125,19 @@ static void draw_title_menu(void)
     draw_menu_options();
 }
 
-static void start_new_game(void)
-{
-    tile_mode2_reset_ground_map();
-    resources_init();
-    ground_targets_init();
-    projectiles_init();
-    enemy_planes_init();
-    ambient_flocks_init();
-    ambient_birds_init();
-
-    flight_set_level(s_start_level);
-    enemy_planes_set_level(s_start_level);
-    enemy_planes_set_enabled(s_computer_enemies_enabled);
-
-    flight_init();
-
-    text_mode1_clear();
-    text_mode1_reset_score();
-
-    s_menu_active = false;
-}
-
 void menu_init(void)
 {
-    s_menu_active = true;
-    s_title_item = TITLE_ITEM_START;
     s_start_level = 1u;
     s_computer_enemies_enabled = true;
-    s_prev_actions = (input_actions_t){0};
+    menu_activate();
+}
 
+void menu_activate(void)
+{
+    s_menu_active = true;
+    s_start_requested = false;
+    s_title_item = TITLE_ITEM_START;
+    s_prev_actions = (input_actions_t){0};
     draw_title_menu();
 }
 
@@ -210,12 +186,14 @@ void menu_update(const input_actions_t *actions)
             s_computer_enemies_enabled = !s_computer_enemies_enabled;
             draw_title_menu();
         } else if (s_title_item == TITLE_ITEM_START) {
-            start_new_game();
+            s_start_requested = true;
+            s_menu_active = false;
         }
     }
 
     if (start_pressed) {
-        start_new_game();
+        s_start_requested = true;
+        s_menu_active = false;
     }
 
     s_prev_actions = *actions;
@@ -224,4 +202,22 @@ void menu_update(const input_actions_t *actions)
 bool menu_is_active(void)
 {
     return s_menu_active;
+}
+
+bool menu_consume_start_request(uint8_t *level, bool *enemies_enabled)
+{
+    if (!s_start_requested) {
+        return false;
+    }
+
+    s_start_requested = false;
+
+    if (level != 0) {
+        *level = s_start_level;
+    }
+    if (enemies_enabled != 0) {
+        *enemies_enabled = s_computer_enemies_enabled;
+    }
+
+    return true;
 }

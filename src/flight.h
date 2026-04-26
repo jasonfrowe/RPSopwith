@@ -7,6 +7,7 @@
 #include "input.h"
 
 void flight_init(void);
+void flight_respawn(void);
 void flight_set_level(uint8_t level);
 void flight_update(const input_actions_t *actions);
 uint16_t flight_world_x(void);

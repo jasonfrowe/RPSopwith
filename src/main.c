@@ -15,6 +15,29 @@
 #include "text_mode1.h"
 #include "menu.h"
 
+typedef enum game_mode_e {
+    GAME_MODE_MENU = 0,
+    GAME_MODE_PLAYING,
+    GAME_MODE_LEVEL_COMPLETE,
+    GAME_MODE_GAME_OVER
+} game_mode_t;
+
+enum {
+    GAME_TICK_DIV_10HZ = 6u,
+    LEVEL_COMPLETE_DELAY_TICKS_10HZ = 20u,
+    GAME_OVER_DELAY_TICKS_10HZ = 40u,
+    MAX_GAME_LEVEL = 10u,
+    STATUS_ROW_MAIN = 14u,
+    STATUS_ROW_SUB = 15u
+};
+
+static game_mode_t s_game_mode = GAME_MODE_MENU;
+static uint8_t s_mode_tick_div = 0u;
+static uint8_t s_mode_timer_10hz = 0u;
+static uint8_t s_current_level = 1u;
+static bool s_current_enemies_enabled = true;
+static bool s_crash_accounted = false;
+
 static bool init_video(void)
 {
     int rc;
@@ -44,6 +67,19 @@ static void init_world(void)
     ambient_birds_init();
 }
 
+static void reset_level_world(void)
+{
+    flight_set_level(s_current_level);
+    enemy_planes_set_level(s_current_level);
+    enemy_planes_set_enabled(s_current_enemies_enabled);
+    ground_targets_init();
+    projectiles_init();
+    enemy_planes_init();
+    ambient_flocks_init();
+    ambient_birds_init();
+    flight_init();
+}
+
 static uint8_t s_vsync_last = 0;
 
 static void wait_for_vsync(void)
@@ -51,6 +87,96 @@ static void wait_for_vsync(void)
     while (RIA.vsync == s_vsync_last) {
     }
     s_vsync_last = RIA.vsync;
+}
+
+static void clear_status_rows(void)
+{
+    text_mode1_put_string(0, STATUS_ROW_MAIN, 0, "                                        ");
+    text_mode1_put_string(0, STATUS_ROW_SUB, 0, "                                        ");
+}
+
+static void show_game_over_text(void)
+{
+    clear_status_rows();
+    text_mode1_put_string(16, STATUS_ROW_MAIN, 13, "THE END");
+}
+
+static void show_level_complete_text(void)
+{
+    char level_line[9];
+
+    clear_status_rows();
+    text_mode1_put_string(13, STATUS_ROW_MAIN, 10, "LEVEL COMPLETE");
+
+    level_line[0] = 'L';
+    level_line[1] = 'E';
+    level_line[2] = 'V';
+    level_line[3] = 'E';
+    level_line[4] = 'L';
+    level_line[5] = ' ';
+    level_line[6] = (char)('0' + ((s_current_level / 10u) % 10u));
+    level_line[7] = (char)('0' + (s_current_level % 10u));
+    level_line[8] = '\0';
+    text_mode1_put_string(16, STATUS_ROW_SUB, 11, level_line);
+}
+
+static void activate_menu_scene(void)
+{
+    resources_init();
+    reset_level_world();
+    enemy_planes_set_enabled(false);
+    clear_status_rows();
+    menu_activate();
+    s_game_mode = GAME_MODE_MENU;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = 0u;
+    s_crash_accounted = false;
+}
+
+static void start_game_session(uint8_t level, bool enemies_enabled)
+{
+    s_current_level = level;
+    s_current_enemies_enabled = enemies_enabled;
+    resources_init();
+    reset_level_world();
+    text_mode1_clear();
+    text_mode1_reset_score();
+    clear_status_rows();
+    s_game_mode = GAME_MODE_PLAYING;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = 0u;
+    s_crash_accounted = false;
+}
+
+static void advance_to_next_level(void)
+{
+    if (s_current_level < MAX_GAME_LEVEL) {
+        ++s_current_level;
+    }
+
+    resources_on_respawn();
+    reset_level_world();
+    clear_status_rows();
+    s_game_mode = GAME_MODE_PLAYING;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = 0u;
+    s_crash_accounted = false;
+}
+
+static void enter_level_complete_mode(void)
+{
+    s_game_mode = GAME_MODE_LEVEL_COMPLETE;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = LEVEL_COMPLETE_DELAY_TICKS_10HZ;
+    show_level_complete_text();
+}
+
+static void enter_game_over_mode(void)
+{
+    s_game_mode = GAME_MODE_GAME_OVER;
+    s_mode_tick_div = 0u;
+    s_mode_timer_10hz = GAME_OVER_DELAY_TICKS_10HZ;
+    show_game_over_text();
 }
 
 static void update_player_projectiles(const input_actions_t *actions)
@@ -66,6 +192,7 @@ static void render_menu_scene(void)
 {
     uint16_t camera_world_x = flight_world_x();
 
+    enemy_planes_update(camera_world_x);
     ground_targets_update(camera_world_x);
     ambient_flocks_update(camera_world_x);
     ambient_birds_update(camera_world_x);
@@ -95,9 +222,60 @@ static void update_player(const input_actions_t *actions)
     }
 }
 
+static void update_playing_mode(const input_actions_t *actions)
+{
+    update_player(actions);
+    update_player_projectiles(actions);
+
+    if (!s_crash_accounted && flight_is_crashed()) {
+        resources_on_plane_lost();
+        text_mode1_score_crash();
+        s_crash_accounted = true;
+
+        if (!resources_can_respawn()) {
+            enter_game_over_mode();
+            return;
+        }
+    }
+
+    if (s_crash_accounted && flight_is_crashed() && actions->start && resources_can_respawn()) {
+        resources_on_respawn();
+        flight_respawn();
+        s_crash_accounted = false;
+        clear_status_rows();
+    }
+
+    if (!flight_is_crashed() && !flight_is_falling() &&
+        ground_targets_all_enemy_targets_destroyed()) {
+        enter_level_complete_mode();
+    }
+}
+
+static void update_nonplaying_mode(void)
+{
+    if (++s_mode_tick_div >= GAME_TICK_DIV_10HZ) {
+        s_mode_tick_div = 0u;
+        if (s_mode_timer_10hz > 0u) {
+            --s_mode_timer_10hz;
+        }
+    }
+
+    if (s_mode_timer_10hz != 0u) {
+        return;
+    }
+
+    if (s_game_mode == GAME_MODE_LEVEL_COMPLETE) {
+        advance_to_next_level();
+    } else if (s_game_mode == GAME_MODE_GAME_OVER) {
+        activate_menu_scene();
+    }
+}
+
 int main(void)
 {
     input_actions_t actions;
+    uint8_t start_level;
+    bool enemies_enabled;
 
     input_init();
 
@@ -105,8 +283,7 @@ int main(void)
         return 1;
     }
 
-    init_world();
-    flight_init();
+    activate_menu_scene();
     menu_init();
 
     while (true) {
@@ -114,12 +291,17 @@ int main(void)
 
         input_poll(&actions);
 
-        if (menu_is_active()) {
+        if (s_game_mode == GAME_MODE_MENU) {
             render_menu_scene();
             menu_update(&actions);
+
+            if (menu_consume_start_request(&start_level, &enemies_enabled)) {
+                start_game_session(start_level, enemies_enabled);
+            }
+        } else if (s_game_mode == GAME_MODE_PLAYING) {
+            update_playing_mode(&actions);
         } else {
-            update_player(&actions);
-            update_player_projectiles(&actions);
+            update_nonplaying_mode();
         }
     }
 }
