@@ -76,6 +76,7 @@ static void reset_level_world(void)
     flight_set_level(s_current_level);
     enemy_planes_set_level(s_current_level);
     enemy_planes_set_enabled(s_current_enemies_enabled);
+    ground_targets_set_level(s_current_level);
     ground_targets_init();
     projectiles_init();
     enemy_planes_init();
