@@ -522,6 +522,7 @@ static void enemy_tick_falling(enemy_plane_t *e)
 
     if (e->plane_y >= (terrain_y - PLAYER_GROUND_CONTACT_FROM_TOP_PX) ||
         e->plane_y >= (SCREEN_HEIGHT + PLAYER_SPRITE_SIZE_PX)) {
+        flight_apply_bomb_crater(e->world_x);
         projectiles_spawn_crash_explosion(e->world_x,
                                           (int16_t)(e->plane_y + (PLAYER_SPRITE_SIZE_PX / 2)),
                                           false);
