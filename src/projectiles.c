@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "ambient_birds.h"
+#include "ambient_flocks.h"
 #include "constants.h"
 #include "enemy_planes.h"
 #include "flight.h"
@@ -474,6 +476,9 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
         return;
     }
 
+    (void)ambient_flocks_scatter_at(p->world_x, p->center_y,
+                                    (uint8_t)(PROJECTILE_SPRITE_SIZE_PX / 2));
+
     hit_enemy = enemy_planes_check_shot_hit(p->world_x, p->center_y,
                                             &enemy_hit_world_x, &enemy_hit_center_y,
                                             &enemy_score_delta, &enemy_big_explosion);
@@ -546,6 +551,11 @@ static void projectile_update_shot(projectile_t *p)
     }
 
     p->center_y = (int16_t)(p->center_y + p->vy);
+
+    if (ambient_birds_check_projectile_hit(p->world_x, p->center_y)) {
+        p->active = false;
+        return;
+    }
 
     if (p->owner == PROJ_OWNER_ENEMY && !flight_is_crashed()) {
         plane_dx = world_delta_to_screen_x(p->world_x, flight_world_x_physics());

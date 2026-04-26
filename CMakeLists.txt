@@ -28,6 +28,8 @@ target_sources(RPSopwith PRIVATE
     src/input.c
     src/flight.c
     src/enemy_planes.c
+    src/ambient_flocks.c
+    src/ambient_birds.c
     src/resources.c
     src/projectiles.c
     src/ground_targets.c
