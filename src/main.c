@@ -13,6 +13,7 @@
 #include "sprite_mode5.h"
 #include "tile_mode2.h"
 #include "text_mode1.h"
+#include "minimap.h"
 #include "menu.h"
 
 typedef enum game_mode_e {
@@ -59,6 +60,7 @@ static bool init_video(void)
     sprite_mode5_init_targets();
     sprite_mode5_init_projectiles();
     text_mode1_init();
+    minimap_init();
 
     return true;
 }
@@ -348,5 +350,7 @@ int main(void)
             }
             update_nonplaying_mode();
         }
+
+        minimap_update_player(flight_world_x());
     }
 }
