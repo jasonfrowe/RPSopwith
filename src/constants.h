@@ -54,7 +54,14 @@
 #define HUD_TILES                (HUD_MAP_DATA + HUD_MAP_DATA_SIZE) // Address for HUD tile graphics
 #define HUD_TILES_SIZE            0x0D60U            // 3424 bytes (107 tiles of 8x8 at 4bpp)
 
-#define SPRITE_DATA_END        (HUD_TILES + HUD_TILES_SIZE)
+// Reserved XRAM scratch for restoring original terrain map after cratering.
+// Must hold a full copy of GROUND_DATA.
+#define GROUND_MAP_BACKUP_ADDR   (HUD_TILES + HUD_TILES_SIZE) // Address for backing up original terrain tile map
+#define GROUND_MAP_BACKUP_SIZE    GROUND_DATA_SIZE
+
+#define SPRITE_DATA_END        (GROUND_MAP_BACKUP_ADDR + GROUND_MAP_BACKUP_SIZE) // End of sprite and tile data in XRAM, start of dynamic allocations
+
+
 
 // Palette configurations
 #define PLAYER_PALETTE_ADDR      0xFC00  // 16-color palette (32 bytes, 0xFC00-0xFC1F)
