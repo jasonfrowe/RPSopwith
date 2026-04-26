@@ -497,9 +497,6 @@ static void flight_tick_10hz(const input_actions_t *actions)
     s_flight.prev_plane_y = s_flight.plane_y;
 
     if (s_flight.crashed) {
-        if (actions->start) {
-            reset_plane_to_home();
-        }
         goto finalize_tick;
     }
 
@@ -779,6 +776,14 @@ void flight_init(void)
     tile_mode2_reset_ground_map();
     s_tick_div = 0u;
     s_home_runway_ground_y = sample_player_runway_ground_y();
+    reset_plane_to_home();
+    s_render_world_x = s_flight.world_x;
+    s_render_plane_y = s_flight.plane_y;
+    apply_visuals();
+}
+
+void flight_respawn(void)
+{
     reset_plane_to_home();
     s_render_world_x = s_flight.world_x;
     s_render_plane_y = s_flight.plane_y;
