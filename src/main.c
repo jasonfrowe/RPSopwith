@@ -15,6 +15,7 @@
 #include "text_mode1.h"
 #include "minimap.h"
 #include "menu.h"
+#include "music_player.h"
 
 typedef enum game_mode_e {
     GAME_MODE_MENU = 0,
@@ -141,6 +142,7 @@ static void activate_menu_scene(void)
     resources_init();
     reset_level_world();
     enemy_planes_set_enabled(false);
+    music_player_play_menu();
     clear_status_rows();
     menu_activate();
     s_game_mode = GAME_MODE_MENU;
@@ -153,6 +155,7 @@ static void start_game_session(uint8_t level, bool enemies_enabled)
 {
     s_current_level = level;
     s_current_enemies_enabled = enemies_enabled;
+    music_player_stop();
     resources_init();
     reset_level_world();
     text_mode1_clear();
@@ -327,6 +330,8 @@ int main(void)
         return 1;
     }
 
+    music_player_init();
+
     activate_menu_scene();
     menu_init();
 
@@ -351,6 +356,7 @@ int main(void)
             update_nonplaying_mode();
         }
 
+        music_player_update();
         minimap_update_player(flight_world_x());
     }
 }
