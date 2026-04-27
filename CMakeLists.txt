@@ -9,6 +9,7 @@ project(RPSopwith C CXX ASM)
 
 add_executable(RPSopwith)
 
+rp6502_asset(RPSopwith help src/help.txt)
 # XRAM Assets
 rp6502_asset(RPSopwith 0x10000 images/player_bank_strip_4bpp.bin)
 rp6502_asset(RPSopwith 0x11800 images/terrain_world_tilemap.bin)

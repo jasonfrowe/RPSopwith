@@ -18,17 +18,25 @@ Fly a biplane through hostile skies, strafe targets, drop bombs, and survive lon
 ## Controls
 
 Keyboard defaults:
-- Left/Right arrows or A/D: throttle down/up
-- Up/Down arrows or W/S: flap up/down
-- C: flip plane direction
-- Home or H: return/request home landing
-- Z or Space: fire gun
-- X: drop bomb
+- X: accelerate
+- Z: decelerate
+- Slash (/): pull up
+- Comma (,): pull down
+- Period (.): flip plane
+- Space: fire gun
+- B: drop bomb
+- H: return/request home landing
 - Enter: start or reset after crash
 
 Gamepad defaults:
-- Loaded from JOYSTICK_SH.DAT when available.
-- Falls back to built-in defaults otherwise.
+- Left stick or D-pad up/down: pull up/down
+- Left stick or D-pad left/right: accelerate/decelerate
+- Y: flip plane
+- X: fire gun
+- A: drop bomb
+- Select/Back: return/request home landing
+- Start: start or reset after crash
+- If JOYSTICK_SH.DAT is present, it overrides these built-in defaults.
 
 ## Current Features
 

@@ -10,21 +10,15 @@
 #define JOYSTICK_CONFIG_FILE "JOYSTICK_SH.DAT"
 
 enum {
-    KEY_A = 0x04,
-    KEY_C = 0x06,
-    KEY_D = 0x07,
+    KEY_B = 0x05,
     KEY_H = 0x0B,
     KEY_X = 0x1B,
     KEY_Z = 0x1D,
     KEY_ENTER = 0x28,
     KEY_SPACE = 0x2C,
-    KEY_HOME = 0x4A,
-    KEY_W = 0x1A,
-    KEY_S = 0x16,
-    KEY_LEFT = 0x50,
-    KEY_RIGHT = 0x4F,
-    KEY_DOWN = 0x51,
-    KEY_UP = 0x52
+    KEY_COMMA = 0x36,
+    KEY_PERIOD = 0x37,
+    KEY_SLASH = 0x38
 };
 
 enum {
@@ -130,47 +124,47 @@ static void reset_default_mappings(void)
 {
     memset(s_button_mappings, 0, sizeof(s_button_mappings));
 
-    s_button_mappings[ACTION_MOVE_UP].keyboard_key = KEY_UP;
+    s_button_mappings[ACTION_MOVE_UP].keyboard_key = KEY_SLASH;
     s_button_mappings[ACTION_MOVE_UP].gamepad_button = GP_FIELD_STICKS;
     s_button_mappings[ACTION_MOVE_UP].gamepad_mask = GP_LSTICK_UP;
     s_button_mappings[ACTION_MOVE_UP].gamepad_button2 = GP_FIELD_DPAD;
     s_button_mappings[ACTION_MOVE_UP].gamepad_mask2 = GP_DPAD_UP;
 
-    s_button_mappings[ACTION_MOVE_DOWN].keyboard_key = KEY_DOWN;
+    s_button_mappings[ACTION_MOVE_DOWN].keyboard_key = KEY_COMMA;
     s_button_mappings[ACTION_MOVE_DOWN].gamepad_button = GP_FIELD_STICKS;
     s_button_mappings[ACTION_MOVE_DOWN].gamepad_mask = GP_LSTICK_DOWN;
     s_button_mappings[ACTION_MOVE_DOWN].gamepad_button2 = GP_FIELD_DPAD;
     s_button_mappings[ACTION_MOVE_DOWN].gamepad_mask2 = GP_DPAD_DOWN;
 
-    s_button_mappings[ACTION_MOVE_LEFT].keyboard_key = KEY_LEFT;
+    s_button_mappings[ACTION_MOVE_LEFT].keyboard_key = KEY_X;
     s_button_mappings[ACTION_MOVE_LEFT].gamepad_button = GP_FIELD_STICKS;
     s_button_mappings[ACTION_MOVE_LEFT].gamepad_mask = GP_LSTICK_LEFT;
     s_button_mappings[ACTION_MOVE_LEFT].gamepad_button2 = GP_FIELD_DPAD;
     s_button_mappings[ACTION_MOVE_LEFT].gamepad_mask2 = GP_DPAD_LEFT;
 
-    s_button_mappings[ACTION_MOVE_RIGHT].keyboard_key = KEY_RIGHT;
+    s_button_mappings[ACTION_MOVE_RIGHT].keyboard_key = KEY_Z;
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_button = GP_FIELD_STICKS;
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_mask = GP_LSTICK_RIGHT;
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_button2 = GP_FIELD_DPAD;
     s_button_mappings[ACTION_MOVE_RIGHT].gamepad_mask2 = GP_DPAD_RIGHT;
 
-    s_button_mappings[ACTION_BTN_Y].keyboard_key = KEY_C;
+    s_button_mappings[ACTION_BTN_Y].keyboard_key = KEY_PERIOD;
     s_button_mappings[ACTION_BTN_Y].gamepad_button = GP_FIELD_BTN0;
     s_button_mappings[ACTION_BTN_Y].gamepad_mask = GP_BTN_Y;
 
-    s_button_mappings[ACTION_BTN_A].keyboard_key = KEY_A;
+    s_button_mappings[ACTION_BTN_A].keyboard_key = KEY_B;
     s_button_mappings[ACTION_BTN_A].gamepad_button = GP_FIELD_BTN0;
     s_button_mappings[ACTION_BTN_A].gamepad_mask = GP_BTN_A;
 
-    s_button_mappings[ACTION_BTN_X].keyboard_key = KEY_X;
+    s_button_mappings[ACTION_BTN_X].keyboard_key = KEY_SPACE;
     s_button_mappings[ACTION_BTN_X].gamepad_button = GP_FIELD_BTN0;
     s_button_mappings[ACTION_BTN_X].gamepad_mask = GP_BTN_X;
 
-    s_button_mappings[ACTION_BTN_B].keyboard_key = KEY_Z;
+    s_button_mappings[ACTION_BTN_B].keyboard_key = 0u;
     s_button_mappings[ACTION_BTN_B].gamepad_button = GP_FIELD_BTN0;
     s_button_mappings[ACTION_BTN_B].gamepad_mask = GP_BTN_B;
 
-    s_button_mappings[ACTION_BTN_SELECT].keyboard_key = KEY_HOME;
+    s_button_mappings[ACTION_BTN_SELECT].keyboard_key = KEY_H;
     s_button_mappings[ACTION_BTN_SELECT].gamepad_button = GP_FIELD_BTN1;
     s_button_mappings[ACTION_BTN_SELECT].gamepad_mask = GP_BTN_SELECT;
 
@@ -274,13 +268,13 @@ void input_poll(input_actions_t *actions)
     s_gamepad0.l2 = RIA.rw0;
     s_gamepad0.r2 = RIA.rw0;
 
-    actions->up = (unsigned char)(action_pressed(ACTION_MOVE_UP) || key_is_down(KEY_W));
-    actions->down = (unsigned char)(action_pressed(ACTION_MOVE_DOWN) || key_is_down(KEY_S));
+    actions->up = (unsigned char)action_pressed(ACTION_MOVE_UP);
+    actions->down = (unsigned char)action_pressed(ACTION_MOVE_DOWN);
     actions->left = (unsigned char)action_pressed(ACTION_MOVE_LEFT);
-    actions->right = (unsigned char)(action_pressed(ACTION_MOVE_RIGHT) || key_is_down(KEY_D));
+    actions->right = (unsigned char)action_pressed(ACTION_MOVE_RIGHT);
     actions->flip = (unsigned char)action_pressed(ACTION_BTN_Y);
-    actions->land = (unsigned char)(action_pressed(ACTION_BTN_SELECT) || key_is_down(KEY_H));
-    actions->fire = (unsigned char)(action_pressed(ACTION_BTN_X) || key_is_down(KEY_SPACE));
+    actions->land = (unsigned char)action_pressed(ACTION_BTN_SELECT);
+    actions->fire = (unsigned char)action_pressed(ACTION_BTN_X);
     actions->bomb = (unsigned char)action_pressed(ACTION_BTN_A);
     actions->start = (unsigned char)action_pressed(ACTION_BTN_START);
 
