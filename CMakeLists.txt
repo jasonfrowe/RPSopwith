@@ -30,6 +30,7 @@ rp6502_executable(RPSopwith
 target_sources(RPSopwith PRIVATE
     src/main.c
     src/music_player.c
+    src/sfx.c
     src/menu.c
     src/input.c
     src/flight.c
