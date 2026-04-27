@@ -16,6 +16,7 @@
 #include "minimap.h"
 #include "menu.h"
 #include "music_player.h"
+#include "sfx.h"
 
 typedef enum game_mode_e {
     GAME_MODE_MENU = 0,
@@ -331,6 +332,7 @@ int main(void)
     }
 
     music_player_init();
+    sfx_init();
 
     activate_menu_scene();
     menu_init();

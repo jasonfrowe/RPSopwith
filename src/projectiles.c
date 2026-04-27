@@ -9,6 +9,7 @@
 #include "ground_targets.h"
 #include "projectiles.h"
 #include "resources.h"
+#include "sfx.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
 
@@ -255,6 +256,7 @@ static bool spawn_shot(void)
         p->life_ticks = SHOT_LIFE_TICKS;
         p->gravity_ticks = 0u;
         p->active = true;
+        sfx_play_gunshot();
         return true;
     }
 
