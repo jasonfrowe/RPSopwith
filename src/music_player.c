@@ -1,25 +1,16 @@
 #include <rp6502.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include "constants.h"
 #include "music_player.h"
 
 enum {
-    MUSIC_BUFFER_SIZE = 256u,
-    MUSIC_SEEK_SET = 0u
+    MUSIC_END_ADDR = (MUSIC_DATA + MUSIC_DATA_SIZE)
 };
 
-static const char s_menu_music_filename[] = "ROM:SOPWITH.BIN";
-
-static int s_music_fd = -1;
-static uint8_t s_music_buffer[MUSIC_BUFFER_SIZE];
-static uint16_t s_music_buf_idx = 0u;
-static uint16_t s_music_bytes_ready = 0u;
+static uint16_t s_music_addr = MUSIC_DATA;
 static uint16_t s_music_wait_ticks = 0u;
 static bool s_music_enabled = false;
-static bool s_music_error = false;
 static bool s_music_just_looped = false;
 
 static void opl_write(uint8_t reg, uint8_t value)
@@ -37,54 +28,23 @@ static void opl_reset(void)
     opl_write(0xBDu, 0x00u);
 }
 
-static void close_music_file(void)
+static uint8_t xram_read_u8(uint16_t addr)
 {
-    if (s_music_fd >= 0) {
-        close(s_music_fd);
-        s_music_fd = -1;
-    }
-}
-
-static bool refill_music_buffer(void)
-{
-    uint16_t remaining = (uint16_t)(s_music_bytes_ready - s_music_buf_idx);
-
-    if (remaining > 0u) {
-        for (uint16_t i = 0u; i < remaining; ++i) {
-            s_music_buffer[i] = s_music_buffer[(uint16_t)(s_music_buf_idx + i)];
-        }
-    }
-
-    s_music_buf_idx = 0u;
-    s_music_bytes_ready = remaining;
-
-    while (s_music_bytes_ready < 4u) {
-        int bytes_read = read(s_music_fd,
-                              &s_music_buffer[s_music_bytes_ready],
-                              (unsigned)(MUSIC_BUFFER_SIZE - s_music_bytes_ready));
-        if (bytes_read <= 0) {
-            return false;
-        }
-        s_music_bytes_ready = (uint16_t)(s_music_bytes_ready + (uint16_t)bytes_read);
-    }
-
-    return true;
+    RIA.addr0 = addr;
+    RIA.step0 = 1;
+    return RIA.rw0;
 }
 
 static bool read_next_packet(uint8_t *reg, uint8_t *value, uint16_t *delay)
 {
-    if (s_music_fd < 0) {
+    if ((uint16_t)(s_music_addr + 3u) >= MUSIC_END_ADDR) {
         return false;
     }
 
-    if ((uint16_t)(s_music_bytes_ready - s_music_buf_idx) < 4u && !refill_music_buffer()) {
-        return false;
-    }
-
-    *reg = s_music_buffer[s_music_buf_idx++];
-    *value = s_music_buffer[s_music_buf_idx++];
-    *delay = (uint16_t)s_music_buffer[s_music_buf_idx++];
-    *delay |= (uint16_t)((uint16_t)s_music_buffer[s_music_buf_idx++] << 8);
+    *reg = xram_read_u8(s_music_addr++);
+    *value = xram_read_u8(s_music_addr++);
+    *delay = (uint16_t)xram_read_u8(s_music_addr++);
+    *delay |= (uint16_t)((uint16_t)xram_read_u8(s_music_addr++) << 8);
     return true;
 }
 
@@ -98,17 +58,9 @@ void music_player_play_menu(void)
 {
     music_player_stop();
 
-    s_music_fd = open(s_menu_music_filename, O_RDONLY);
-    if (s_music_fd < 0) {
-        s_music_error = true;
-        return;
-    }
-
-    s_music_buf_idx = 0u;
-    s_music_bytes_ready = 0u;
+    s_music_addr = MUSIC_DATA;
     s_music_wait_ticks = 0u;
     s_music_enabled = true;
-    s_music_error = false;
     s_music_just_looped = false;
 
     opl_reset();
@@ -117,12 +69,9 @@ void music_player_play_menu(void)
 void music_player_stop(void)
 {
     s_music_enabled = false;
-    s_music_error = false;
     s_music_just_looped = false;
+    s_music_addr = MUSIC_DATA;
     s_music_wait_ticks = 0u;
-    s_music_buf_idx = 0u;
-    s_music_bytes_ready = 0u;
-    close_music_file();
     opl_reset();
 }
 
@@ -132,7 +81,7 @@ void music_player_update(void)
     uint8_t value;
     uint16_t delay;
 
-    if (!s_music_enabled || s_music_error || s_music_fd < 0) {
+    if (!s_music_enabled) {
         return;
     }
 
@@ -142,7 +91,6 @@ void music_player_update(void)
 
     while (s_music_wait_ticks == 0u) {
         if (!read_next_packet(&reg, &value, &delay)) {
-            s_music_error = true;
             music_player_stop();
             return;
         }
@@ -157,14 +105,7 @@ void music_player_update(void)
         s_music_just_looped = false;
 
         if (reg == 0xFFu && value == 0xFFu) {
-            if (lseek(s_music_fd, 0, MUSIC_SEEK_SET) < 0) {
-                s_music_error = true;
-                music_player_stop();
-                return;
-            }
-
-            s_music_buf_idx = 0u;
-            s_music_bytes_ready = 0u;
+            s_music_addr = MUSIC_DATA;
             s_music_just_looped = true;
             continue;
         }

@@ -102,3 +102,17 @@ void sfx_play_enemy_gunshot(void)
                   &s_shadow_b0, &s_shadow_ksl_c,
                   64u, 96u);
 }
+
+void sfx_play_bomb_drop(void)
+{
+    sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
+                  &s_shadow_b0, &s_shadow_ksl_c,
+                  52u, 88u);
+}
+
+void sfx_play_collision(void)
+{
+    sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
+                  &s_shadow_b0, &s_shadow_ksl_c,
+                  40u, 120u);
+}
