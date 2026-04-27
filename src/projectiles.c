@@ -637,6 +637,7 @@ bool projectiles_spawn_enemy_shot(uint16_t world_x, int16_t center_y,
         p->life_ticks = SHOT_LIFE_TICKS;
         p->gravity_ticks = 0u;
         p->active = true;
+        sfx_play_enemy_gunshot();
         return true;
     }
 
