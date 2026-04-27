@@ -8,6 +8,7 @@
 #include "flight.h"
 #include "ground_targets.h"
 #include "projectiles.h"
+#include "sfx.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
 #include "tile_mode2.h"
