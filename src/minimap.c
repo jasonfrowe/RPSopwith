@@ -18,10 +18,11 @@ enum {
     MINIMAP_HEIGHT_PX = (MINIMAP_HEIGHT_TILES * 8u),
     WORLD_WIDTH_PX = (GROUND_WIDTH * 8),
     MINIMAP_PLAYER_Y_OFFSET_PX = 3u,
-    MINIMAP_PLAYER_COLOR = 7u,
-    MINIMAP_BUILDING_COLOR = 11u,
-    MINIMAP_ENEMY_COLOR = 9u,
-    MINIMAP_FLOCK_COLOR = 10u,
+    MINIMAP_PLAYER_COLOR = 15u,
+    MINIMAP_BUILDING_COLOR = 12u,
+    MINIMAP_FRIENDLY_BUILDING_COLOR = 11u,
+    MINIMAP_ENEMY_COLOR = 12u,
+    MINIMAP_FLOCK_COLOR = 8u,
     MINIMAP_UPDATE_DIV = 6u,
     MINIMAP_MAX_MARKERS = (MAX_TARGETS + MAX_ENEMIES + MAX_FLOCK_SPRITES + 1u)
 };
@@ -247,11 +248,13 @@ void minimap_update_player(uint16_t world_x)
     s_update_div = 0u;
     s_curr_count = 0u;
 
-    count = ground_targets_get_minimap_buildings(s_marker_world_x, s_marker_y, MAX_TARGETS);
+    static uint8_t s_marker_friendly[MAX_TARGETS];
+    count = ground_targets_get_minimap_buildings(s_marker_world_x, s_marker_y, s_marker_friendly, MAX_TARGETS);
     for (uint8_t i = 0u; i < count; ++i) {
         minimap_add_marker(minimap_scale_x(s_marker_world_x[i]),
                            minimap_scale_y(s_marker_y[i]),
-                           MINIMAP_BUILDING_COLOR);
+                           s_marker_friendly[i] ? MINIMAP_FRIENDLY_BUILDING_COLOR
+                                                : MINIMAP_BUILDING_COLOR);
     }
 
     count = enemy_planes_get_minimap_fighters(s_marker_world_x, s_marker_y, MAX_ENEMIES);
