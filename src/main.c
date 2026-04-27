@@ -28,6 +28,7 @@ typedef enum game_mode_e {
 
 enum {
     GAME_TICK_DIV_10HZ = 6u,
+    CRASH_RESPAWN_DELAY_TICKS_10HZ = 20u,
     WIN_TIMEOUT_TICKS_10HZ = 72u,
     WIN_FRAME_HOLD_TICKS_10HZ = 18u,
     WIN_FRAME_RIGHT_BASE = 40u,
@@ -46,6 +47,8 @@ static uint8_t s_current_level = 1u;
 static bool s_current_enemies_enabled = true;
 static bool s_crash_accounted = false;
 static bool s_win_flipped = false;
+static uint8_t s_play_tick_div = 0u;
+static uint8_t s_crash_respawn_timer_10hz = 0u;
 
 static bool init_video(void)
 {
@@ -149,6 +152,8 @@ static void activate_menu_scene(void)
     s_game_mode = GAME_MODE_MENU;
     s_mode_tick_div = 0u;
     s_mode_timer_10hz = 0u;
+    s_play_tick_div = 0u;
+    s_crash_respawn_timer_10hz = 0u;
     s_crash_accounted = false;
 }
 
@@ -165,6 +170,8 @@ static void start_game_session(uint8_t level, bool enemies_enabled)
     s_game_mode = GAME_MODE_PLAYING;
     s_mode_tick_div = 0u;
     s_mode_timer_10hz = 0u;
+    s_play_tick_div = 0u;
+    s_crash_respawn_timer_10hz = 0u;
     s_crash_accounted = false;
 }
 
@@ -180,6 +187,8 @@ static void advance_to_next_level(void)
     s_game_mode = GAME_MODE_PLAYING;
     s_mode_tick_div = 0u;
     s_mode_timer_10hz = 0u;
+    s_play_tick_div = 0u;
+    s_crash_respawn_timer_10hz = 0u;
     s_crash_accounted = false;
 }
 
@@ -267,6 +276,13 @@ static void update_player(const input_actions_t *actions)
 
 static void update_playing_mode(const input_actions_t *actions)
 {
+    if (++s_play_tick_div >= GAME_TICK_DIV_10HZ) {
+        s_play_tick_div = 0u;
+        if (s_crash_respawn_timer_10hz > 0u) {
+            --s_crash_respawn_timer_10hz;
+        }
+    }
+
     enemy_planes_update(flight_world_x());
     update_player(actions);
     update_player_projectiles(actions);
@@ -275,6 +291,7 @@ static void update_playing_mode(const input_actions_t *actions)
         resources_on_plane_lost();
         text_mode1_score_crash();
         s_crash_accounted = true;
+        s_crash_respawn_timer_10hz = CRASH_RESPAWN_DELAY_TICKS_10HZ;
 
         if (!resources_can_respawn()) {
             enter_game_over_mode();
@@ -282,9 +299,11 @@ static void update_playing_mode(const input_actions_t *actions)
         }
     }
 
-    if (s_crash_accounted && flight_is_crashed() && actions->start && resources_can_respawn()) {
+    if (s_crash_accounted && flight_is_crashed() && resources_can_respawn() &&
+        (actions->start || s_crash_respawn_timer_10hz == 0u)) {
         resources_on_respawn();
         flight_respawn();
+        s_crash_respawn_timer_10hz = 0u;
         s_crash_accounted = false;
         clear_status_rows();
     }
