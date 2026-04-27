@@ -12,7 +12,6 @@
 #include "sfx.h"
 #include "sprite_mode5.h"
 #include "text_mode1.h"
-
 typedef struct projectile_s {
     uint16_t world_x;
     int16_t center_y;
@@ -298,6 +297,7 @@ static bool spawn_bomb(void)
         p->life_ticks = 0u;
         p->gravity_ticks = BOMB_GRAVITY_TICKS;
         p->active = true;
+        sfx_play_bomb_drop();
         return true;
     }
 
@@ -477,6 +477,7 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
         bomb_hits_plane(prev_world_x, prev_center_y) ||
         bomb_hits_plane(wrap_world_x((int16_t)prev_world_x + half_dx), mid_center_y)) {
         flight_apply_bomb_hit(p->world_x, p->center_y);
+        sfx_play_collision();
         spawn_explosion_from(p, p->world_x, p->center_y, false);
         return;
     }
@@ -499,6 +500,7 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
                                                 &enemy_score_delta, &enemy_big_explosion);
     }
     if (hit_enemy) {
+        sfx_play_collision();
         spawn_explosion_from(p, enemy_hit_world_x, enemy_hit_center_y, enemy_big_explosion);
         text_mode1_add_score(enemy_score_delta);
         return;
@@ -512,15 +514,18 @@ static void projectile_update_bomb(projectile_t *p, uint16_t prev_world_x, int16
     hit_ground = p->center_y >= (terrain_y - 8);
 
     if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+        sfx_play_collision();
         spawn_explosion_from(p, hit_world_x, hit_center_y, true);
         text_mode1_add_score(score_delta);
     } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
+        sfx_play_collision();
         p->active = false;
         text_mode1_add_score(score_delta);
     } else if (hit_target == GROUND_TARGET_HIT_NORMAL || hit_ground) {
         if (hit_target == GROUND_TARGET_HIT_NORMAL) {
             p->vx = 0;
             p->vy = 0;
+            sfx_play_collision();
             spawn_explosion_from(p, hit_world_x, hit_center_y, false);
             text_mode1_add_score(score_delta);
         } else {
@@ -571,6 +576,7 @@ static void projectile_update_shot(projectile_t *p)
             plane_dy >= -(int16_t)PLANE_HITBOX_HALF_HEIGHT_UP_PX &&
             plane_dy <= (int16_t)PLANE_HITBOX_HALF_HEIGHT_DOWN_PX) {
             flight_apply_debris_hit();
+            sfx_play_collision();
             p->active = false;
             return;
         }
@@ -583,6 +589,7 @@ static void projectile_update_shot(projectile_t *p)
                                                 &hit_world_x, &hit_center_y,
                                                 &score_delta, &big_explosion);
         if (hit_enemy) {
+            sfx_play_collision();
             p->active = false;
             text_mode1_add_score(score_delta);
             return;
@@ -596,14 +603,17 @@ static void projectile_update_shot(projectile_t *p)
     }
 
     if (hit_target == GROUND_TARGET_HIT_EXPLOSIVE) {
+        sfx_play_collision();
         spawn_explosion_from(p, hit_world_x, hit_center_y, true);
         text_mode1_add_score(score_delta);
     } else if (hit_target == GROUND_TARGET_HIT_NO_EXPLOSION) {
+        sfx_play_collision();
         p->active = false;
         text_mode1_add_score(score_delta);
     } else if (hit_target == GROUND_TARGET_HIT_NORMAL) {
         p->vx = 0;
         p->vy = 0;
+        sfx_play_collision();
         spawn_explosion_from(p, hit_world_x, hit_center_y, false);
         text_mode1_add_score(score_delta);
     } else if (p->center_y >= terrain_y ||

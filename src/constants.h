@@ -62,7 +62,10 @@
 #define GROUND_PROFILE          0xC8D4U
 #define GROUND_PROFILE_SIZE     0x0BB8U            // 3000 bytes (pre-sampled terrain height at each world X pixel)
 
-#define SPRITE_DATA_END        (GROUND_PROFILE + GROUND_PROFILE_SIZE) // End of sprite and tile data in XRAM, start of dynamic allocations
+#define MUSIC_DATA             (GROUND_PROFILE + GROUND_PROFILE_SIZE)
+#define MUSIC_DATA_SIZE         0x0A00U            // 2560 bytes (SOPWITH.BIN OPL packets in XRAM)
+
+#define SPRITE_DATA_END        (MUSIC_DATA + MUSIC_DATA_SIZE) // End of sprite and tile data in XRAM, start of dynamic allocations
 
 
 
