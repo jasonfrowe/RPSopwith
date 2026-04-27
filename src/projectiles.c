@@ -297,7 +297,6 @@ static bool spawn_bomb(void)
         p->life_ticks = 0u;
         p->gravity_ticks = BOMB_GRAVITY_TICKS;
         p->active = true;
-        sfx_play_bomb_drop();
         return true;
     }
 
