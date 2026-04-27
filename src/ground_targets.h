@@ -16,7 +16,7 @@ void ground_targets_set_level(uint8_t level);
 void ground_targets_update(uint16_t camera_world_x);
 bool ground_targets_all_enemy_targets_destroyed(void);
 uint8_t ground_targets_get_minimap_buildings(uint16_t *world_x, int16_t *ground_y,
-                                             uint8_t max_points);
+                                             uint8_t *is_friendly, uint8_t max_points);
 ground_target_hit_type_t ground_targets_check_hit(uint16_t proj_world_x, int16_t proj_center_y,
                                                   uint16_t *hit_world_x, int16_t *hit_center_y,
                                                   int16_t *score_delta);

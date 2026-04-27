@@ -351,7 +351,7 @@ bool ground_targets_all_enemy_targets_destroyed(void)
 }
 
 uint8_t ground_targets_get_minimap_buildings(uint16_t *world_x, int16_t *ground_y,
-                                             uint8_t max_points)
+                                             uint8_t *is_friendly, uint8_t max_points)
 {
     uint8_t count = 0u;
 
@@ -370,6 +370,7 @@ uint8_t ground_targets_get_minimap_buildings(uint16_t *world_x, int16_t *ground_
 
         world_x[count] = s_targets[i].world_x;
         ground_y[count] = s_target_ground_y[i];
+        is_friendly[count] = (type == TARGET_TYPE_FRIENDLY_BUILDING) ? 1u : 0u;
         ++count;
     }
 
