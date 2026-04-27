@@ -19,6 +19,9 @@ rp6502_asset(RPSopwith 0x18AD2 images/HUD_map.bin)
 rp6502_asset(RPSopwith 0x18F82 images/HUD_tiles_4bpp.bin)
 rp6502_asset(RPSopwith 0x1C8D4 images/ground_profile_3000.bin)
 
+#ROM Assets
+rp6502_asset(RPSopwith SOPWITH.BIN Music/SOPWITH.BIN) 
+
 rp6502_executable(RPSopwith 
     DATA file 
     RESET file
@@ -26,6 +29,7 @@ rp6502_executable(RPSopwith
 
 target_sources(RPSopwith PRIVATE
     src/main.c
+    src/music_player.c
     src/menu.c
     src/input.c
     src/flight.c
