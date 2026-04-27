@@ -95,3 +95,10 @@ void sfx_play_gunshot(void)
                   &s_shadow_b0, &s_shadow_ksl_c,
                   72u, 110u);
 }
+
+void sfx_play_enemy_gunshot(void)
+{
+    sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
+                  &s_shadow_b0, &s_shadow_ksl_c,
+                  64u, 96u);
+}
