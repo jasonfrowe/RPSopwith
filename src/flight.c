@@ -528,7 +528,10 @@ static void flight_tick_10hz(const input_actions_t *actions)
     int16_t speed_limit;
     int16_t dx;
     int16_t dy;
+    bool stalled;
     bool update = false;
+    const uint8_t stall_count = 6u;
+    const uint8_t stall_recover_angle = 12u;
 
     s_flight.tick_count_10hz++;
     s_flight.prev_world_x = s_flight.world_x;
@@ -602,6 +605,13 @@ static void flight_tick_10hz(const input_actions_t *actions)
         enter_stall_state();
     }
 
+    stalled = s_flight.stalled_high;
+    if (stalled && ((uint8_t)s_flight.plane_pitch == stall_recover_angle) &&
+        (s_flight.speed >= flight_min_speed())) {
+        s_flight.stalled_high = false;
+        stalled = false;
+    }
+
     if (actions->left && s_flight.throttle < MAX_THROTTLE) {
         ++s_flight.throttle;
         s_flight.landing = false;
@@ -651,7 +661,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
 
     if ((s_flight.tick_count_10hz & 0x03u) == 0u) {
         if (s_flight.airborne) {
-            if (!s_flight.stalled_high && nspeed < (int16_t)flight_min_speed()) {
+            if (!stalled && nspeed < (int16_t)flight_min_speed()) {
                 --nspeed;
                 update = true;
             } else {
@@ -670,8 +680,9 @@ static void flight_tick_10hz(const input_actions_t *actions)
     if (update) {
         if (!s_flight.airborne) {
             nspeed = (s_flight.throttle == 0u && flaps == 0) ? 0 : (int16_t)flight_min_speed();
-        } else if (!s_flight.stalled_high && nspeed <= 0) {
+        } else if (!stalled && nspeed <= 0) {
             enter_stall_state();
+            stalled = true;
             nspeed = 0;
         }
 
@@ -683,7 +694,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
     dx = (int16_t)((s_flight.speed * s_sintab[((uint8_t)s_flight.plane_pitch + 4u) & 15u]) / 256);
     dy = (int16_t)((s_flight.speed * s_sintab[(uint8_t)s_flight.plane_pitch & 15u]) / 256);
 
-    if (!s_flight.stalled_high) {
+    if (!stalled) {
         s_flight.world_x = wrap_world_x_add(s_flight.world_x, dx);
     }
 
@@ -711,7 +722,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
         if (s_flight.speed > 0u) {
             s_flight.airborne = true;
         }
-    } else if (s_flight.stalled_high) {
+    } else if (stalled) {
         s_flight.plane_vy = (int8_t)s_flight.speed;
         s_flight.plane_y = (int16_t)(s_flight.plane_y + s_flight.plane_vy);
 
@@ -721,7 +732,7 @@ static void flight_tick_10hz(const input_actions_t *actions)
         if (s_flight.stall_tick == 0u) {
             s_flight.plane_orient = !s_flight.plane_orient;
             s_flight.plane_pitch = (int8_t)((24 - (uint8_t)s_flight.plane_pitch) & 0x0Fu);
-            s_flight.stall_tick = 6u;
+            s_flight.stall_tick = stall_count;
         }
 
         if (plane_collides_with_terrain(s_flight.plane_y)) {
