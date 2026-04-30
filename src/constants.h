@@ -110,13 +110,6 @@
 #define PLANE_HITBOX_HALF_HEIGHT_UP_PX     (PLANE_HITBOX_HEIGHT_PX / 2)
 #define PLANE_HITBOX_HALF_HEIGHT_DOWN_PX   (PLANE_HITBOX_HEIGHT_PX / 2 - 1)
 
-// Audio triage toggles to isolate startup/runtime instability without removing the module.
-// Keep music enabled; selectively disable specific SFX paths while diagnosing hardware load issues.
-#define ENABLE_SFX_BOOT_INIT               1
-#define ENABLE_SFX_GUNSHOT                 1
-#define ENABLE_SFX_ENEMY_GUNSHOT           1
-#define ENABLE_SFX_COLLISION               1
-
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
 extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is stored, for updates
