@@ -544,17 +544,9 @@ static void flight_tick_10hz(const input_actions_t *actions)
         int16_t hit_center_y = 0;
         int16_t score_delta = 0;
         ground_target_hit_type_t hit_type;
-        int8_t fall_flaps = 0;
 
         if (consume_flip_repeat(actions->flip != 0u)) {
             s_flight.plane_orient = !s_flight.plane_orient;
-        }
-
-        if (actions->down) {
-            fall_flaps = 1;
-        }
-        if (actions->up) {
-            fall_flaps = -1;
         }
 
         s_flight.world_x = wrap_world_x((int16_t)s_flight.world_x + s_flight.fall_dx);
@@ -570,14 +562,6 @@ static void flight_tick_10hz(const input_actions_t *actions)
                                                 0,
                                                 0)) {
             bounce_while_falling_from_enemy(enemy_hit_world_x);
-        }
-
-        if ((s_flight.fall_dy > 0) && (s_flight.fall_dx != 0)) {
-            if (s_flight.plane_orient ^ (s_flight.fall_dx < 0)) {
-                s_flight.fall_countdown -= fall_flaps;
-            } else {
-                s_flight.fall_countdown += fall_flaps;
-            }
         }
 
         s_flight.fall_countdown -= 2;
