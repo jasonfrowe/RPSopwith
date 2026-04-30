@@ -351,7 +351,9 @@ int main(void)
     }
 
     music_player_init();
+#if ENABLE_SFX_BOOT_INIT
     sfx_init();
+#endif
 
     activate_menu_scene();
     menu_init();

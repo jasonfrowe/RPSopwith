@@ -5,12 +5,12 @@
 #include <stdbool.h>
 
 // Remove this when LLVM-MOS-SDK is updated for MODE-5.
-typedef struct {
-  int x_pos_px;
-  int y_pos_px;
-  unsigned xram_sprite_ptr;
-  unsigned palette_ptr;
-} vga_mode5_sprite_t;
+// typedef struct {
+//   int x_pos_px;
+//   int y_pos_px;
+//   unsigned xram_sprite_ptr;
+//   unsigned palette_ptr;
+// } vga_mode5_sprite_t;
 
 
 // Palette extracted from Sprites/player_bank_strip.png
