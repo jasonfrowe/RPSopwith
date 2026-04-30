@@ -915,11 +915,6 @@ bool flight_is_crashed(void)
     return s_flight.crashed;
 }
 
-bool flight_is_wounded(void)
-{
-    return false;
-}
-
 bool flight_is_falling(void)
 {
     return s_flight.falling;

@@ -110,11 +110,6 @@
 #define PLANE_HITBOX_HALF_HEIGHT_UP_PX     (PLANE_HITBOX_HEIGHT_PX / 2)
 #define PLANE_HITBOX_HALF_HEIGHT_DOWN_PX   (PLANE_HITBOX_HEIGHT_PX / 2 - 1)
 
-// Gameplay features (toggles for classic vs enhanced behavior)
-// When enabled, hit planes enter a wounded state with reduced control before crashing.
-// When disabled, hit planes immediately enter uncontrolled falling (classic DOS behavior).
-#define ENABLE_WOUNDED_STATE               0
-
 // Audio triage toggles to isolate startup/runtime instability without removing the module.
 // Keep music enabled; selectively disable specific SFX paths while diagnosing hardware load issues.
 #define ENABLE_SFX_BOOT_INIT               0
