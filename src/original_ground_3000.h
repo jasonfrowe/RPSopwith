@@ -1,3 +1,9 @@
+// Tooling-only source terrain samples.
+// Runtime must read the packed profile from XRAM at GROUND_PROFILE.
+#ifndef RPSOPWITH_TOOLING_ONLY
+#error "original_ground_3000.h is tooling-only; use XRAM GROUND_PROFILE at runtime"
+#endif
+
 static const uint8_t s_original_ground[3000] = {
     199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199,
     199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199, 199,

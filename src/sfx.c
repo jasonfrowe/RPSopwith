@@ -84,6 +84,9 @@ static void sfx_play_note(const sfx_patch_t *p, uint8_t ch,
 
 void sfx_init(void)
 {
+#if !ENABLE_SFX_BOOT_INIT
+    return;
+#endif
     s_shadow_b0    = 0u;
     s_shadow_ksl_c = 0u;
     sfx_opl_write((uint8_t)(0xB0u + SFX_SHOT_CH), 0x00u);
@@ -91,6 +94,9 @@ void sfx_init(void)
 
 void sfx_play_gunshot(void)
 {
+#if !ENABLE_SFX_GUNSHOT
+    return;
+#endif
     sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
                   &s_shadow_b0, &s_shadow_ksl_c,
                   72u, 110u);
@@ -98,6 +104,9 @@ void sfx_play_gunshot(void)
 
 void sfx_play_enemy_gunshot(void)
 {
+#if !ENABLE_SFX_ENEMY_GUNSHOT
+    return;
+#endif
     sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
                   &s_shadow_b0, &s_shadow_ksl_c,
                   64u, 96u);
@@ -105,6 +114,9 @@ void sfx_play_enemy_gunshot(void)
 
 void sfx_play_collision(void)
 {
+#if !ENABLE_SFX_COLLISION
+    return;
+#endif
     sfx_play_note(&s_shot_patch, SFX_SHOT_CH,
                   &s_shadow_b0, &s_shadow_ksl_c,
                   40u, 120u);

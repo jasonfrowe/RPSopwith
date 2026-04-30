@@ -115,6 +115,13 @@
 // When disabled, hit planes immediately enter uncontrolled falling (classic DOS behavior).
 #define ENABLE_WOUNDED_STATE               0
 
+// Audio triage toggles to isolate startup/runtime instability without removing the module.
+// Keep music enabled; selectively disable specific SFX paths while diagnosing hardware load issues.
+#define ENABLE_SFX_BOOT_INIT               0
+#define ENABLE_SFX_GUNSHOT                 1
+#define ENABLE_SFX_ENEMY_GUNSHOT           1
+#define ENABLE_SFX_COLLISION               0
+
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
 extern unsigned TILE_GROUND_CONFIG; // Address in XRAM where tilemap config is stored, for updates
