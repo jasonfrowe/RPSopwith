@@ -21,7 +21,6 @@ bool flight_is_airborne(void);
 bool flight_is_at_home_base(void);
 bool flight_can_start_landing(void);
 bool flight_is_crashed(void);
-bool flight_is_wounded(void);
 bool flight_is_falling(void);
 void flight_apply_debris_hit(void);
 void flight_apply_bomb_hit(uint16_t impact_world_x, int16_t impact_center_y);

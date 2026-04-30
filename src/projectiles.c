@@ -681,7 +681,7 @@ static void projectiles_tick_10hz(void)
 
     update_resource_tick();
 
-    if ((flight_is_wounded() || flight_is_falling()) && s_smoke_spawn_cooldown == 0u) {
+    if (flight_is_falling() && s_smoke_spawn_cooldown == 0u) {
         spawn_smoke();
         s_smoke_spawn_cooldown = SMOKE_SPAWN_COOLDOWN_TICKS;
     }
