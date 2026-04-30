@@ -112,10 +112,10 @@
 
 // Audio triage toggles to isolate startup/runtime instability without removing the module.
 // Keep music enabled; selectively disable specific SFX paths while diagnosing hardware load issues.
-#define ENABLE_SFX_BOOT_INIT               0
+#define ENABLE_SFX_BOOT_INIT               1
 #define ENABLE_SFX_GUNSHOT                 1
 #define ENABLE_SFX_ENEMY_GUNSHOT           1
-#define ENABLE_SFX_COLLISION               0
+#define ENABLE_SFX_COLLISION               1
 
 // Configs 
 extern unsigned PLAYER_CONFIG; // Address in XRAM where player sprite config is stored, for updates
